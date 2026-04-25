@@ -22,8 +22,8 @@ const CrashMessage = props => (
             </h2>
             <p>
                 <FormattedMessage
-                    defaultMessage={'We are so sorry, but it looks like OpenBlock has crashed. This bug has been' +
-                        ' automatically reported to the OpenBlock Team. Please refresh your page to try' +
+                    defaultMessage={'We are so sorry, but it looks like RoboCoders Studio has crashed. This bug has been' +
+                        ' automatically reported to the RoboCoders Team. Please refresh your page to try' +
                         ' again.'}
                     description="Message to inform the user that page has crashed."
                     id="gui.crashMessage.description"
