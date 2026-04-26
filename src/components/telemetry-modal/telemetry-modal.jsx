@@ -11,13 +11,13 @@ import styles from './telemetry-modal.css';
 const messages = defineMessages({
     label: {
         id: 'gui.telemetryOptIn.label',
-        defaultMessage: 'Report statistics to improve OpenBlock',
-        description: 'OpenBlock telemetry modal label - for accessibility'
+        defaultMessage: 'Report statistics to improve RoboCoders Studio',
+        description: 'RoboCoders Studio telemetry modal label - for accessibility'
     },
     bodyText1: {
-        defaultMessage: 'The OpenBlock Team is always looking to better understand how OpenBlock is used around the ' +
-            'world. To help support this effort, you can allow OpenBlock to automatically send usage information to ' +
-            'the OpenBlock Team.',
+        defaultMessage: 'The RoboCoders Team is always looking to better understand how RoboCoders Studio is used around the ' +
+            'world. To help support this effort, you can allow RoboCoders Studio to automatically send usage information to ' +
+            'the RoboCoders Team.',
         description: 'First paragraph of body text for telemetry opt-in modal',
         id: 'gui.telemetryOptIn.body1'
     },
@@ -30,11 +30,11 @@ const messages = defineMessages({
     },
     privacyPolicyLink: {
         defaultMessage: 'Privacy Policy',
-        description: 'Link to the OpenBlock privacy policy',
+        description: 'Link to the RoboCoders Studio privacy policy',
         id: 'gui.telemetryOptIn.privacyPolicyLink'
     },
     optInText: {
-        defaultMessage: 'Share my usage data with the Openblock Team',
+        defaultMessage: 'Share my usage data with the RoboCoders Team',
         description: 'Text for telemetry modal opt-in button',
         id: 'gui.telemetryOptIn.optInText'
     },
@@ -44,7 +44,7 @@ const messages = defineMessages({
         id: 'gui.telemetryOptIn.optInTooltip'
     },
     optOutText: {
-        defaultMessage: 'Do not share my usage data with the Openblock Team',
+        defaultMessage: 'Do not share my usage data with the RoboCoders Team',
         description: 'Text for telemetry modal opt-in button',
         id: 'gui.telemetryOptIn.optOutText'
     },
