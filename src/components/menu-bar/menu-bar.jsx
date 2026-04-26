@@ -392,7 +392,7 @@ class MenuBar extends React.Component {
     }
     handleSelectDeviceMouseUp () {
         const blocklyBlockCanvas = document.querySelector('.blocklyWorkspace .blocklyBlockCanvas');
-        if (blocklyBlockCanvas.childNodes.length === 0) {
+        if (!blocklyBlockCanvas || blocklyBlockCanvas.childNodes.length === 0) {
             this.props.onOpenDeviceLibrary();
         } else {
             this.props.onWorkspaceIsNotEmpty();
@@ -430,7 +430,7 @@ class MenuBar extends React.Component {
     }
     handleScreenshot () {
         const blocklyBlockCanvas = document.querySelector('.blocklyWorkspace .blocklyBlockCanvas');
-        if (blocklyBlockCanvas.childNodes.length === 0) {
+        if (!blocklyBlockCanvas || blocklyBlockCanvas.childNodes.length === 0) {
             this.props.onWorkspaceIsEmpty();
         } else {
             const transform = blocklyBlockCanvas.getAttribute('transform');
