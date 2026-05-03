@@ -156,6 +156,12 @@ const GUIComponent = props => {
 
     /* ── All hooks at the top level (before any conditional returns) ── */
     const [showHomeScreen, setShowHomeScreen] = useState(!isScratchDesktop);
+
+    // Keep showHomeScreen in sync with isScratchDesktop so HMR / late prop delivery works.
+    // In desktop, isScratchDesktop is always true → hide HomeScreen immediately.
+    useEffect(() => {
+        if (isScratchDesktop) setShowHomeScreen(false);
+    }, [isScratchDesktop]);
     const [mlProjects,      setMlProjects]     = useState(loadMLProjects);
     const [mlView,          setMlView]         = useState('projects');
     const [activeMLProject, setActiveMLProject] = useState(null);
@@ -672,7 +678,8 @@ GUIComponent.propTypes = {
     telemetryModalVisible: PropTypes.bool,
     tipsLibraryVisible: PropTypes.bool,
     vm: PropTypes.instanceOf(VM).isRequired,
-    isRealtimeMode: PropTypes.bool
+    isRealtimeMode: PropTypes.bool,
+    isScratchDesktop: PropTypes.bool
 };
 GUIComponent.defaultProps = {
     backpackHost: null,
