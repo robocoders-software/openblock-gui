@@ -72,7 +72,6 @@ class GUI extends React.Component {
             cloudHost,
             error,
             isError,
-            isScratchDesktop,
             isShowingProject,
             onProjectLoaded,
             onStorageInit,
@@ -81,6 +80,7 @@ class GUI extends React.Component {
             projectHost,
             projectId,
             /* eslint-enable no-unused-vars */
+            isScratchDesktop,
             children,
             fetchingProject,
             isLoading,
@@ -90,6 +90,7 @@ class GUI extends React.Component {
         return (
             <GUIComponent
                 loading={fetchingProject || isLoading || loadingStateVisible}
+                isScratchDesktop={isScratchDesktop}
                 {...componentProps}
             >
                 {children}
