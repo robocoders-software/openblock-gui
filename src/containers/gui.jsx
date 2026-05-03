@@ -15,7 +15,8 @@ import {
     activateTab,
     BLOCKS_TAB_INDEX,
     COSTUMES_TAB_INDEX,
-    SOUNDS_TAB_INDEX
+    SOUNDS_TAB_INDEX,
+    ML_TAB_INDEX
 } from '../reducers/editor-tab';
 
 import {
@@ -55,7 +56,8 @@ class GUI extends React.Component {
             // At this time the project view in www doesn't need to know when a project is unloaded
             this.props.onProjectLoaded();
         }
-        if (this.props.isRealtimeMode !== true) {
+        if (this.props.isRealtimeMode !== true && prevProps.isRealtimeMode === true) {
+            // When switching from realtime mode back to code mode, return to blocks tab
             this.props.onActivateBlocksTab();
         }
     }
@@ -72,7 +74,6 @@ class GUI extends React.Component {
             isError,
             isScratchDesktop,
             isShowingProject,
-            onActivateBlocksTab,
             onProjectLoaded,
             onStorageInit,
             onUpdateProjectId,
@@ -152,6 +153,7 @@ const mapStateToProps = state => {
         loadingStateVisible: state.scratchGui.modals.loadingProject,
         projectId: state.scratchGui.projectState.projectId,
         soundsTabVisible: state.scratchGui.editorTab.activeTabIndex === SOUNDS_TAB_INDEX,
+        mlTabVisible: state.scratchGui.editorTab.activeTabIndex === ML_TAB_INDEX,
         targetIsStage: (
             state.scratchGui.targets.stage &&
             state.scratchGui.targets.stage.id === state.scratchGui.targets.editingTarget
@@ -169,6 +171,7 @@ const mapDispatchToProps = dispatch => ({
     onActivateBlocksTab: () => dispatch(activateTab(BLOCKS_TAB_INDEX)),
     onActivateCostumesTab: () => dispatch(activateTab(COSTUMES_TAB_INDEX)),
     onActivateSoundsTab: () => dispatch(activateTab(SOUNDS_TAB_INDEX)),
+    onActivateMLTab: () => dispatch(activateTab(ML_TAB_INDEX)),
     onRequestCloseBackdropLibrary: () => dispatch(closeBackdropLibrary()),
     onRequestCloseCostumeLibrary: () => dispatch(closeCostumeLibrary()),
     onRequestCloseTelemetryModal: () => dispatch(closeTelemetryModal())

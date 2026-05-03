@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90">
+  <rect width="120" height="90" rx="8" fill="#4C97FF"/>
+  <rect x="5" y="5" width="110" height="80" rx="6" fill="#1A73E8"/>
+  <circle cx="60" cy="45" r="25" fill="white" opacity="0.15"/>
+  <circle cx="60" cy="45" r="18" fill="none" stroke="white" stroke-width="3"/>
+  <circle cx="60" cy="45" r="8" fill="white"/>
+  <rect x="45" y="12" width="30" height="12" rx="4" fill="#2196F3"/>
+  <!-- bounding box -->
+  <rect x="15" y="20" width="38" height="32" fill="none" stroke="#FFAB19" stroke-width="3" stroke-dasharray="4,2"/>
+  <!-- label tag -->
+  <rect x="15" y="52" width="38" height="12" rx="2" fill="#FFAB19"/>
+  <text x="34" y="61" text-anchor="middle" font-family="sans-serif" font-size="8" fill="white" font-weight="bold">person</text>
+  <!-- confidence bar -->
+  <rect x="58" y="72" width="55" height="6" rx="3" fill="rgba(255,255,255,0.2)"/>
+  <rect x="58" y="72" width="44" height="6" rx="3" fill="#FFAB19"/>
+  <text x="60" y="84" font-family="sans-serif" font-size="7" fill="white">92%</text>
+</svg>

@@ -293,6 +293,18 @@ $fade-out-distance: 15px;
     pointer-events: none;
 }
 
+.ml-tab-panel {
+    overflow: hidden;
+}
+
+.ml-panel-wrapper {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+}
+
 [dir="ltr"] .watermark {
     right: 1.25rem;
 }

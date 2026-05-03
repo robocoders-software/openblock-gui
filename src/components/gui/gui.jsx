@@ -1,7 +1,7 @@
 import classNames from 'classnames';
 import omit from 'lodash.omit';
 import PropTypes from 'prop-types';
-import React from 'react';
+import React, {useState, useCallback, useEffect} from 'react';
 import {defineMessages, FormattedMessage, injectIntl, intlShape} from 'react-intl';
 import {connect} from 'react-redux';
 import MediaQuery from 'react-responsive';
@@ -40,6 +40,7 @@ import layout, {STAGE_SIZE_MODES} from '../../lib/layout-constants';
 import {resolveStageSize} from '../../lib/screen-utils';
 
 import styles from './gui.css';
+import {HomeScreen, MLProjectsPage, MLTrainingPage, CreateProjectModal, deleteProjectIDB} from 'openblock-ml-studio';
 import addExtensionIcon from './icon--extensions.svg';
 import codeIcon from './icon--code.svg';
 import costumesIcon from './icon--costumes.svg';
@@ -108,7 +109,10 @@ const GUIComponent = props => {
         onAbortUpdate,
         onActivateCostumesTab,
         onActivateSoundsTab,
+        onActivateMLTab,
+        onActivateBlocksTab,
         onActivateTab,
+        mlTabVisible,
         onClickLogo,
         onClickCheckUpdate,
         onClickUpdate,
@@ -137,6 +141,92 @@ const GUIComponent = props => {
         isRealtimeMode,
         ...componentProps
     } = omit(props, 'dispatch');
+    /* ── ML project helpers (defined before hooks) ── */
+    const ML_STORAGE_KEY = 'robocoders_ml_projects';
+    const loadMLProjects = () => {
+        try { return JSON.parse(localStorage.getItem(ML_STORAGE_KEY) || '[]'); }
+        catch (_) { return []; }
+    };
+    const saveMLProjects = ps => {
+        try { localStorage.setItem(ML_STORAGE_KEY, JSON.stringify(ps)); }
+        catch (_) { /* quota */ }
+    };
+    const genMLId = () => Math.random().toString(36).slice(2, 10);
+
+    /* ── All hooks at the top level (before any conditional returns) ── */
+    const [showHomeScreen, setShowHomeScreen] = useState(true);
+    const [mlProjects,      setMlProjects]     = useState(loadMLProjects);
+    const [mlView,          setMlView]         = useState('projects');
+    const [activeMLProject, setActiveMLProject] = useState(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+
+    const createMLProject = useCallback(({name, type}) => {
+        const p = {
+            id: genMLId(), name, type,
+            labels: ['Class 1', 'Class 2'],
+            trainingData: {}, trained: false,
+            createdAt: Date.now(), updatedAt: Date.now()
+        };
+        setMlProjects(prev => { const next = [...prev, p]; saveMLProjects(next); return next; });
+        setShowCreateModal(false);
+        setActiveMLProject(p);
+        setMlView('training');
+    }, []);
+
+    const deleteMLProject = useCallback(projectOrId => {
+        const id = typeof projectOrId === 'string' ? projectOrId : projectOrId.id;
+        setMlProjects(prev => { const next = prev.filter(p => p.id !== id); saveMLProjects(next); return next; });
+        deleteProjectIDB(id).catch(() => {});
+    }, []);
+
+    const importMLProject = useCallback(() => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json,.mlproject';
+        input.onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = evt => {
+                try {
+                    const p = JSON.parse(evt.target.result);
+                    if (!p.name || !p.type) throw new Error('Invalid project file');
+                    const imported = {
+                        ...p,
+                        id: genMLId(),
+                        createdAt: Date.now(),
+                        updatedAt: Date.now(),
+                        trained: false,
+                        trainingData: {}
+                    };
+                    setMlProjects(prev => {
+                        const next = [...prev, imported];
+                        saveMLProjects(next);
+                        return next;
+                    });
+                    setActiveMLProject(imported);
+                    setMlView('training');
+                } catch (err) {
+                    console.error('[MLStudio] Import failed:', err);
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }, []);
+
+    const updateMLProject = useCallback(updated => {
+        setMlProjects(prev => {
+            const next = prev.map(p => p.id === updated.id ? updated : p);
+            saveMLProjects(next);
+            return next;
+        });
+        setActiveMLProject(updated);
+    }, []);
+
+    useEffect(() => { saveMLProjects(mlProjects); }, [mlProjects]);
+
+    /* ── Early return for children prop (after all hooks) ── */
     if (children) {
         return <Box {...componentProps}>{children}</Box>;
     }
@@ -149,6 +239,32 @@ const GUIComponent = props => {
         tabPanelSelected: classNames(tabStyles.reactTabsTabPanelSelected, styles.isSelected),
         tabSelected: classNames(tabStyles.reactTabsTabSelected, styles.isSelected)
     };
+
+    /* Switch to blocks tab FIRST so the Blocks component mounts its
+       SCRATCH_EXTENSION_ADDED listener before loadExtensionURL fires the event. */
+    const loadMLExtensionAndSwitch = useCallback(() => {
+        onActivateBlocksTab();
+        if (vm && vm.extensionManager && !vm.extensionManager.isExtensionLoaded('teachableMachine')) {
+            setTimeout(() => {
+                vm.extensionManager.loadExtensionURL('teachableMachine').catch(e => {
+                    console.warn('[ML] extension auto-load failed:', e);
+                });
+            }, 300);
+        }
+    }, [vm, onActivateBlocksTab]);
+
+    const handleSelectMode = modeId => {
+        setShowHomeScreen(false);
+        if (modeId === 'aiml') {
+            onActivateMLTab();
+        } else {
+            loadMLExtensionAndSwitch();
+        }
+    };
+
+    if (showHomeScreen) {
+        return <HomeScreen onSelectMode={handleSelectMode} />;
+    }
 
     if (isRendererSupported === null) {
         isRendererSupported = Renderer.isSupported();
@@ -339,6 +455,28 @@ const GUIComponent = props => {
                                             id="gui.gui.soundsTab"
                                         />
                                     </Tab>
+                                    <Tab className={tabClassNames.tab}>
+                                        <svg
+                                            draggable={false}
+                                            width="18"
+                                            height="18"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M12 2a6 6 0 0 1 6 6c0 2-1 3.5-2.5 4.5L17 21H7l1.5-8.5C7 11.5 6 10 6 8a6 6 0 0 1 6-6z"/>
+                                            <line x1="9" y1="21" x2="15" y2="21"/>
+                                            <line x1="9" y1="17" x2="15" y2="17"/>
+                                        </svg>
+                                        <FormattedMessage
+                                            defaultMessage="AI & ML"
+                                            description="Button to get to the AI/ML training panel"
+                                            id="gui.gui.mlTab"
+                                        />
+                                    </Tab>
                                 </TabList>
                                 <TabPanel className={tabClassNames.tabPanel}>
                                     <Box className={styles.blocksWrapper}>
@@ -379,6 +517,37 @@ const GUIComponent = props => {
                                         vm={vm}
                                         onShowMessageBox={onShowMessageBox}
                                     /> : null}
+                                </TabPanel>
+                                <TabPanel className={classNames(tabClassNames.tabPanel, styles.mlTabPanel)}>
+                                    {mlTabVisible ? (
+                                        <div className={styles.mlPanelWrapper}>
+                                            {mlView === 'projects' ? (
+                                                <>
+                                                    <MLProjectsPage
+                                                        projects={mlProjects}
+                                                        onBack={() => setShowHomeScreen(true)}
+                                                        onCreate={() => setShowCreateModal(true)}
+                                                        onOpen={p => { setActiveMLProject(p); setMlView('training'); }}
+                                                        onDelete={deleteMLProject}
+                                                        onImport={importMLProject}
+                                                    />
+                                                    {showCreateModal && (
+                                                        <CreateProjectModal
+                                                            onCancel={() => setShowCreateModal(false)}
+                                                            onCreate={createMLProject}
+                                                        />
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <MLTrainingPage
+                                                    project={activeMLProject}
+                                                    onBack={() => { setMlView('projects'); setActiveMLProject(null); }}
+                                                    onUseInBlocks={loadMLExtensionAndSwitch}
+                                                    onUpdateProject={updateMLProject}
+                                                />
+                                            )}
+                                        </div>
+                                    ) : null}
                                 </TabPanel>
                             </Tabs>
                             {/*
@@ -460,7 +629,10 @@ GUIComponent.propTypes = {
     logo: PropTypes.string,
     onActivateCostumesTab: PropTypes.func,
     onActivateSoundsTab: PropTypes.func,
+    onActivateMLTab: PropTypes.func,
+    onActivateBlocksTab: PropTypes.func,
     onActivateTab: PropTypes.func,
+    mlTabVisible: PropTypes.bool,
     onClickAccountNav: PropTypes.func,
     onClickLogo: PropTypes.func,
     onClickCheckUpdate: PropTypes.func,

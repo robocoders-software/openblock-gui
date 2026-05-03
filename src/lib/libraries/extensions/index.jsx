@@ -19,6 +19,9 @@ import translateInsetIconURL from './translate/translate-small.png';
 import makeymakeyIconURL from './makeymakey/makeymakey.png';
 import makeymakeyInsetIconURL from './makeymakey/makeymakey-small.svg';
 
+import teachableMachineIconURL from './teachableMachine/teachable-machine.svg';
+import teachableMachineInsetIconURL from './teachableMachine/teachable-machine-small.svg';
+
 // import ev3IconURL from './ev3/ev3.png';
 // import ev3InsetIconURL from './ev3/ev3-small.svg';
 // import ev3ConnectionIconURL from './ev3/ev3-hub-illustration.svg';
@@ -166,7 +169,27 @@ export default [
             />
         ),
         featured: true
-    }
+    },
+    {
+        name: (
+            <FormattedMessage
+                defaultMessage="Machine Learning"
+                description="Name for the Machine Learning extension"
+                id="gui.extension.teachableMachine.name"
+            />
+        ),
+        extensionId: 'teachableMachine',
+        iconURL: teachableMachineIconURL,
+        insetIconURL: teachableMachineInsetIconURL,
+        description: (
+            <FormattedMessage
+                defaultMessage="Use your trained ML model to classify images with AI blocks."
+                description="Description for the Machine Learning extension"
+                id="gui.extension.teachableMachine.description"
+            />
+        ),
+        featured: true
+    },
     // {
     //     name: 'LEGO MINDSTORMS EV3',
     //     extensionId: 'ev3',
