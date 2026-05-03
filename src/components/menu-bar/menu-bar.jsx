@@ -988,7 +988,7 @@ MenuBar.propTypes = {
         PropTypes.func, // button mode: call this callback when the About button is clicked
         PropTypes.arrayOf( // menu mode: list of items in the About menu
             PropTypes.shape({
-                title: PropTypes.string, // text for the menu item
+                title: PropTypes.node, // text or element for the menu item
                 onClick: PropTypes.func // call this callback when the menu item is clicked
             })
         )

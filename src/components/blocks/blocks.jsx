@@ -8,6 +8,7 @@ const BlocksComponent = props => {
     const {
         containerRef,
         dragOver,
+        onShowMessageBox, // eslint-disable-line no-unused-vars
         ...componentProps
     } = props;
     return (
@@ -22,6 +23,7 @@ const BlocksComponent = props => {
 };
 BlocksComponent.propTypes = {
     containerRef: PropTypes.func,
-    dragOver: PropTypes.bool
+    dragOver: PropTypes.bool,
+    onShowMessageBox: PropTypes.func
 };
 export default BlocksComponent;
