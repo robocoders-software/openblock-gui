@@ -13,7 +13,7 @@ const motion = function (isInitialSetup, isStage, targetId) {
         'Stage selected: no motion blocks'
     );
     return `
-    <category name="%{BKY_CATEGORY_MOTION}" id="motion" colour="#4C97FF" secondaryColour="#3373CC">
+    <category name="%{BKY_CATEGORY_MOTION}" id="motion" colour="#9966FF" secondaryColour="#774DCB">
         ${isStage ? `
         <label text="${stageSelected}"></label>
         ` : `
@@ -157,7 +157,7 @@ const looks = function (isInitialSetup, isStage, targetId, costumeName, backdrop
     const hello = ScratchBlocks.ScratchMsgs.translate('LOOKS_HELLO', 'Hello!');
     const hmm = ScratchBlocks.ScratchMsgs.translate('LOOKS_HMM', 'Hmm...');
     return `
-    <category name="%{BKY_CATEGORY_LOOKS}" id="looks" colour="#9966FF" secondaryColour="#774DCB">
+    <category name="%{BKY_CATEGORY_LOOKS}" id="looks" colour="#4C97FF" secondaryColour="#3373CC">
         ${isStage ? '' : `
         <block type="looks_sayforsecs">
             <value name="MESSAGE">

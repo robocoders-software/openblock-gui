@@ -30,7 +30,11 @@ const base = {
         chunkFilename: 'chunks/[name].js'
     },
     resolve: {
-        symlinks: false
+        symlinks: false,
+        alias: {
+            'openblock-vm$': path.resolve(__dirname, '../openblock-vm/src/index.js'),
+            'openblock-vm/src': path.resolve(__dirname, '../openblock-vm/src')
+        }
     },
     module: {
         rules: [{
@@ -41,7 +45,8 @@ const base = {
                 /node_modules[\\/]scratch-[^\\/]+[\\/]src/,
                 /node_modules[\\/]pify/,
                 /node_modules[\\/]@vernier[\\/]godirect/,
-                /node_modules[\\/]openblock-ml-studio[\\/]src/
+                /node_modules[\\/]openblock-ml-studio[\\/]src/,
+                path.resolve(__dirname, '../openblock-vm/src')
             ],
             options: {
                 // Explicitly disable babelrc so we don't catch various config
@@ -51,9 +56,7 @@ const base = {
                     '@babel/plugin-syntax-dynamic-import',
                     '@babel/plugin-transform-async-to-generator',
                     '@babel/plugin-proposal-object-rest-spread',
-                    ['react-intl', {
-                        messagesDir: './translations/messages/'
-                    }]],
+                    'react-intl'],
                 presets: ['@babel/preset-env', '@babel/preset-react']
             }
         },

@@ -139,6 +139,7 @@ const GUIComponent = props => {
         tipsLibraryVisible,
         vm,
         isRealtimeMode,
+        isScratchDesktop,
         ...componentProps
     } = omit(props, 'dispatch');
     /* ── ML project helpers (defined before hooks) ── */
@@ -154,7 +155,7 @@ const GUIComponent = props => {
     const genMLId = () => Math.random().toString(36).slice(2, 10);
 
     /* ── All hooks at the top level (before any conditional returns) ── */
-    const [showHomeScreen, setShowHomeScreen] = useState(true);
+    const [showHomeScreen, setShowHomeScreen] = useState(!isScratchDesktop);
     const [mlProjects,      setMlProjects]     = useState(loadMLProjects);
     const [mlView,          setMlView]         = useState('projects');
     const [activeMLProject, setActiveMLProject] = useState(null);
@@ -244,11 +245,17 @@ const GUIComponent = props => {
        SCRATCH_EXTENSION_ADDED listener before loadExtensionURL fires the event. */
     const loadMLExtensionAndSwitch = useCallback(() => {
         onActivateBlocksTab();
-        if (vm && vm.extensionManager && !vm.extensionManager.isExtensionLoaded('teachableMachine')) {
+        if (vm && vm.extensionManager) {
             setTimeout(() => {
-                vm.extensionManager.loadExtensionURL('teachableMachine').catch(e => {
-                    console.warn('[ML] extension auto-load failed:', e);
-                });
+                if (!vm.extensionManager.isExtensionLoaded('teachableMachine')) {
+                    vm.extensionManager.loadExtensionURL('teachableMachine').catch(e => {
+                        console.warn('[ML] extension auto-load failed:', e);
+                    });
+                } else {
+                    // Extension already registered — re-emit block info so a freshly-mounted
+                    // workspace gets the ML blocks added to its toolbox.
+                    vm.extensionManager.refreshBlocks();
+                }
             }, 300);
         }
     }, [vm, onActivateBlocksTab]);
