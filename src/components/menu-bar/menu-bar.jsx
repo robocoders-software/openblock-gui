@@ -73,6 +73,7 @@ import {
 } from '../../reducers/menus';
 import {setStageSize} from '../../reducers/stage-size';
 import {setUploadMode, setRealtimeMode} from '../../reducers/program-mode';
+import {activateTab, ML_TAB_INDEX} from '../../reducers/editor-tab';
 import {setRealtimeConnection, clearConnectionModalPeripheralName} from '../../reducers/connection-modal';
 import {setUpdate} from '../../reducers/update';
 import {STAGE_SIZE_MODES} from '../../lib/layout-constants';
@@ -98,6 +99,7 @@ import editIcon from './icon--edit.svg';
 import openblockLogo from './openblock-logo.svg';
 import openblockLogoSmall from './openblock-logo-small.svg';
 
+import ScratchBlocks from 'openblock-blocks';
 import sharedMessages from '../../lib/shared-messages';
 
 import Switch from 'react-switch';
@@ -209,6 +211,10 @@ class MenuBar extends React.Component {
             'checkOverflow',
             'containerRef',
             'handleClickNew',
+            'handleOpenMLEnv',
+            'handleOpenRoboticsEnv',
+            'handleUndo',
+            'handleRedo',
             'handleClickRemix',
             'handleClickOpenCommunity',
             'handleClickOpenWiki',
@@ -286,6 +292,25 @@ class MenuBar extends React.Component {
             this.props.onClickNew(this.props.canSave && this.props.canCreateNew);
         }
         this.props.onRequestCloseFile();
+    }
+    handleUndo () {
+        this.props.onRequestCloseEdit();
+        if (ScratchBlocks.mainWorkspace) ScratchBlocks.mainWorkspace.undo(false);
+    }
+    handleRedo () {
+        this.props.onRequestCloseEdit();
+        if (ScratchBlocks.mainWorkspace) ScratchBlocks.mainWorkspace.undo(true);
+    }
+    handleOpenMLEnv () {
+        this.props.onRequestCloseFile();
+        this.props.onActivateMLTab();
+    }
+    handleOpenRoboticsEnv () {
+        this.props.onRequestCloseFile();
+        if (this.props.isRealtimeMode) {
+            this.props.vm.runtime.setRealtimeMode(false);
+            this.props.onSetUploadMode();
+        }
     }
     handleClickRemix () {
         this.props.onClickRemix();
@@ -618,33 +643,18 @@ class MenuBar extends React.Component {
                                         isRtl={this.props.isRtl}
                                         onClick={this.handleClickNew}
                                     >
-                                        {newProjectMessage}
+                                        <FormattedMessage
+                                            defaultMessage="New"
+                                            description="Menu bar item for creating a new project"
+                                            id="gui.menuBar.new"
+                                        />
                                     </MenuItem>
-                                </MenuSection>
-                                {(this.props.canSave || this.props.canCreateCopy || this.props.canRemix) && (
-                                    <MenuSection>
-                                        {this.props.canSave && (
-                                            <MenuItem onClick={this.handleClickSave}>
-                                                {saveNowMessage}
-                                            </MenuItem>
-                                        )}
-                                        {this.props.canCreateCopy && (
-                                            <MenuItem onClick={this.handleClickSaveAsCopy}>
-                                                {createCopyMessage}
-                                            </MenuItem>
-                                        )}
-                                        {this.props.canRemix && (
-                                            <MenuItem onClick={this.handleClickRemix}>
-                                                {remixMessage}
-                                            </MenuItem>
-                                        )}
-                                    </MenuSection>
-                                )}
-                                <MenuSection>
-                                    <MenuItem
-                                        onClick={this.props.onStartSelectingFileUpload}
-                                    >
-                                        {this.props.intl.formatMessage(sharedMessages.loadFromComputerTitle)}
+                                    <MenuItem onClick={this.props.onStartSelectingFileUpload}>
+                                        <FormattedMessage
+                                            defaultMessage="Open"
+                                            description="Menu bar item for opening an existing project"
+                                            id="gui.menuBar.open"
+                                        />
                                     </MenuItem>
                                     <SB3Downloader>{(className, downloadProjectCallback) => (
                                         <MenuItem
@@ -652,12 +662,28 @@ class MenuBar extends React.Component {
                                             onClick={this.getSaveToComputerHandler(downloadProjectCallback)}
                                         >
                                             <FormattedMessage
-                                                defaultMessage="Save to your computer"
-                                                description="Menu bar item for downloading a project to your computer" // eslint-disable-line max-len
-                                                id="gui.menuBar.downloadToComputer"
+                                                defaultMessage="Save"
+                                                description="Menu bar item for saving the project"
+                                                id="gui.menuBar.save"
                                             />
                                         </MenuItem>
                                     )}</SB3Downloader>
+                                </MenuSection>
+                                <MenuSection>
+                                    <MenuItem onClick={this.handleOpenMLEnv}>
+                                        <FormattedMessage
+                                            defaultMessage="Open ML Env"
+                                            description="Menu bar item to open the ML environment"
+                                            id="gui.menuBar.openMLEnv"
+                                        />
+                                    </MenuItem>
+                                    <MenuItem onClick={this.handleOpenRoboticsEnv}>
+                                        <FormattedMessage
+                                            defaultMessage="Open Robotics Env"
+                                            description="Menu bar item to open the robotics/program environment"
+                                            id="gui.menuBar.openRoboticsEnv"
+                                        />
+                                    </MenuItem>
                                 </MenuSection>
                             </MenuBarMenu>
                         </div>
@@ -667,7 +693,7 @@ class MenuBar extends React.Component {
                             this.props.isRealtimeMode ? styles.hoverable : styles.disabled,
                             {[styles.active]: this.props.editMenuOpen
                             })}
-                        onMouseUp={this.props.isRealtimeMode ? this.props.onClickEdit : null}
+                        onMouseUp={this.props.onClickEdit}
                     >
                         <div className={classNames(styles.editMenu)} >
                             {this.state.isOverflow ? (
@@ -687,32 +713,21 @@ class MenuBar extends React.Component {
                             place={this.props.isRtl ? 'left' : 'right'}
                             onRequestClose={this.props.onRequestCloseEdit}
                         >
-                            <DeletionRestorer>{(handleRestore, {restorable, deletedItem}) => (
-                                <MenuItem
-                                    className={classNames({[styles.disabled]: !restorable})}
-                                    onClick={this.handleRestoreOption(handleRestore)}
-                                >
-                                    {this.restoreOptionMessage(deletedItem)}
-                                </MenuItem>
-                            )}</DeletionRestorer>
                             <MenuSection>
-                                <TurboMode>{(toggleTurboMode, {turboMode}) => (
-                                    <MenuItem onClick={toggleTurboMode}>
-                                        {turboMode ? (
-                                            <FormattedMessage
-                                                defaultMessage="Turn off Turbo Mode"
-                                                description="Menu bar item for turning off turbo mode"
-                                                id="gui.menuBar.turboModeOff"
-                                            />
-                                        ) : (
-                                            <FormattedMessage
-                                                defaultMessage="Turn on Turbo Mode"
-                                                description="Menu bar item for turning on turbo mode"
-                                                id="gui.menuBar.turboModeOn"
-                                            />
-                                        )}
-                                    </MenuItem>
-                                )}</TurboMode>
+                                <MenuItem onClick={this.handleUndo}>
+                                    <FormattedMessage
+                                        defaultMessage="Undo"
+                                        description="Menu bar item for undo"
+                                        id="gui.menuBar.undo"
+                                    />
+                                </MenuItem>
+                                <MenuItem onClick={this.handleRedo}>
+                                    <FormattedMessage
+                                        defaultMessage="Redo"
+                                        description="Menu bar item for redo"
+                                        id="gui.menuBar.redo"
+                                    />
+                                </MenuItem>
                             </MenuSection>
                         </MenuBarMenu>
                     </div>
@@ -822,17 +837,6 @@ class MenuBar extends React.Component {
                         />
                         {this.state.isOverflow ? null : <FormattedMessage {...ariaMessages.community} />}
                     </div>*/}
-                    <div
-                        aria-label={this.props.intl.formatMessage(ariaMessages.wiki)}
-                        className={classNames(styles.menuBarItem, styles.hoverable)}
-                        onClick={this.handleClickOpenWiki}
-                    >
-                        <img
-                            className={styles.wikiIcon}
-                            src={wikiIcon}
-                        />
-                        {this.state.isOverflow ? null : <FormattedMessage {...ariaMessages.wiki} />}
-                    </div>
                     <div
                         aria-label={this.props.intl.formatMessage(ariaMessages.tutorials)}
                         className={classNames(styles.menuBarItem, styles.hoverable)}
@@ -993,6 +997,7 @@ MenuBar.propTypes = {
             })
         )
     ]),
+    onActivateMLTab: PropTypes.func,
     onClickAccount: PropTypes.func,
     onClickEdit: PropTypes.func,
     onClickFile: PropTypes.func,
@@ -1106,6 +1111,7 @@ const mapDispatchToProps = dispatch => ({
     onRequestCloseLogin: () => dispatch(closeLoginMenu()),
     onRequestOpenAbout: () => dispatch(openAboutMenu()),
     onRequestCloseAbout: () => dispatch(closeAboutMenu()),
+    onActivateMLTab: () => dispatch(activateTab(ML_TAB_INDEX)),
     onClickNew: needSave => dispatch(requestNewProject(needSave)),
     onClickRemix: () => dispatch(remixProject()),
     onClickSave: () => dispatch(manualUpdateProject()),

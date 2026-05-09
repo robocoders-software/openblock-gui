@@ -233,6 +233,55 @@ const GUIComponent = props => {
 
     useEffect(() => { saveMLProjects(mlProjects); }, [mlProjects]);
 
+    // Pre-load teachableMachine when ML tab opens so blocks are ready on first export
+    useEffect(() => {
+        if (mlTabVisible && vm && vm.extensionManager &&
+            !vm.extensionManager.isExtensionLoaded('teachableMachine')) {
+            vm.extensionManager.loadExtensionURL('teachableMachine')
+                .catch(e => console.warn('[ML] extension pre-load failed:', e));
+        }
+    }, [mlTabVisible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Desktop path: when WrappedGui first mounts after an ML export, the project is not
+    // yet loaded (targets are null), so we must wait for the first targetsUpdate before
+    // loading the extension and refreshing — otherwise getToolboxXML() returns null and
+    // the toolbox never picks up the ML blocks.
+    useEffect(() => {
+        if (!vm || !vm.extensionManager) return;
+        if (typeof window === 'undefined' || !window.__openblockMLModel) return;
+        if (vm.extensionManager.isExtensionLoaded('teachableMachine')) return;
+
+        const doLoad = () => {
+            vm.extensionManager.loadExtensionURL('teachableMachine')
+                .then(() => vm.extensionManager.refreshBlocks())
+                .catch(e => console.warn('[ML] auto-load failed:', e));
+        };
+
+        // If the project already has targets (e.g. visited blocks first), load now.
+        if (vm.runtime.targets && vm.runtime.targets.length > 0) {
+            doLoad();
+            return;
+        }
+        // Otherwise wait for the first targetsUpdate (project finished loading).
+        const onTargetsReady = () => {
+            vm.removeListener('targetsUpdate', onTargetsReady);
+            doLoad();
+        };
+        vm.addListener('targetsUpdate', onTargetsReady);
+        return () => vm.removeListener('targetsUpdate', onTargetsReady);
+    }, [vm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // When blocks tab becomes visible and teachableMachine is loaded, force a toolbox refresh
+    // This guarantees the ML blocks appear even if the first toolbox update happened while hidden
+    useEffect(() => {
+        if (!blocksTabVisible || !vm || !vm.extensionManager) return;
+        if (!vm.extensionManager.isExtensionLoaded('teachableMachine')) return;
+        const t = setTimeout(() => {
+            vm.extensionManager.refreshBlocks();
+        }, 100);
+        return () => clearTimeout(t);
+    }, [blocksTabVisible]); // eslint-disable-line react-hooks/exhaustive-deps
+
     /* ── Early return for children prop (after all hooks) ── */
     if (children) {
         return <Box {...componentProps}>{children}</Box>;
@@ -247,22 +296,22 @@ const GUIComponent = props => {
         tabSelected: classNames(tabStyles.reactTabsTabSelected, styles.isSelected)
     };
 
-    /* Switch to blocks tab FIRST so the Blocks component mounts its
-       SCRATCH_EXTENSION_ADDED listener before loadExtensionURL fires the event. */
+    // Load extension FIRST so toolbox XML is populated before blocks tab becomes visible
     const loadMLExtensionAndSwitch = useCallback(() => {
-        onActivateBlocksTab();
-        if (vm && vm.extensionManager) {
-            setTimeout(() => {
-                if (!vm.extensionManager.isExtensionLoaded('teachableMachine')) {
-                    vm.extensionManager.loadExtensionURL('teachableMachine').catch(e => {
-                        console.warn('[ML] extension auto-load failed:', e);
-                    });
-                } else {
-                    // Extension already registered — re-emit block info so a freshly-mounted
-                    // workspace gets the ML blocks added to its toolbox.
-                    vm.extensionManager.refreshBlocks();
-                }
-            }, 300);
+        if (!vm || !vm.extensionManager) {
+            onActivateBlocksTab();
+            return;
+        }
+        const doSwitch = () => setTimeout(onActivateBlocksTab, 50);
+        if (vm.extensionManager.isExtensionLoaded('teachableMachine')) {
+            vm.extensionManager.refreshBlocks().then(doSwitch);
+        } else {
+            vm.extensionManager.loadExtensionURL('teachableMachine')
+                .then(() => setTimeout(doSwitch, 0))
+                .catch(e => {
+                    console.warn('[ML] extension load failed:', e);
+                    onActivateBlocksTab();
+                });
         }
     }, [vm, onActivateBlocksTab]);
 
@@ -468,27 +517,11 @@ const GUIComponent = props => {
                                             id="gui.gui.soundsTab"
                                         />
                                     </Tab>
-                                    <Tab className={tabClassNames.tab}>
-                                        <svg
-                                            draggable={false}
-                                            width="18"
-                                            height="18"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                        >
-                                            <path d="M12 2a6 6 0 0 1 6 6c0 2-1 3.5-2.5 4.5L17 21H7l1.5-8.5C7 11.5 6 10 6 8a6 6 0 0 1 6-6z"/>
-                                            <line x1="9" y1="21" x2="15" y2="21"/>
-                                            <line x1="9" y1="17" x2="15" y2="17"/>
-                                        </svg>
-                                        <FormattedMessage
-                                            defaultMessage="AI & ML"
-                                            description="Button to get to the AI/ML training panel"
-                                            id="gui.gui.mlTab"
-                                        />
+                                    <Tab
+                                        className={tabClassNames.tab}
+                                        style={{display: 'none'}}
+                                    >
+                                        {'AI & ML'}
                                     </Tab>
                                 </TabList>
                                 <TabPanel className={tabClassNames.tabPanel}>
@@ -557,6 +590,9 @@ const GUIComponent = props => {
                                                     onBack={() => { setMlView('projects'); setActiveMLProject(null); }}
                                                     onUseInBlocks={loadMLExtensionAndSwitch}
                                                     onUpdateProject={updateMLProject}
+                                                    onNewProject={() => { setMlView('projects'); setActiveMLProject(null); setShowHomeScreen(true); }}
+                                                    onNewMLProject={() => { setMlView('projects'); setActiveMLProject(null); setShowCreateModal(true); }}
+                                                    onOpenMLProject={() => { setMlView('projects'); setActiveMLProject(null); importMLProject(); }}
                                                 />
                                             )}
                                         </div>
