@@ -52,8 +52,9 @@ const ProjectSaverHOC = function (WrappedComponent) {
                 'leavePageConfirm',
                 'tryToAutoSave'
             ]);
+            this._saveInFlight = false; // tracks whether a save IPC is in progress
         }
-        componentWillMount () {
+        componentDidMount () {
             if (typeof window === 'object') {
                 // Note: it might be better to use a listener instead of assigning onbeforeunload;
                 // but then it'd be hard to turn this listening off in our tests
@@ -124,7 +125,8 @@ const ProjectSaverHOC = function (WrappedComponent) {
             this.props.onSetProjectSaver(null);
         }
         leavePageConfirm (e) {
-            if (this.props.projectChanged) {
+            // Block navigation if a save is actively writing to disk OR if changes are unsaved
+            if (this.props.projectChanged || this._saveInFlight) {
                 // both methods of returning a value may be necessary for browser compatibility
                 (e || window.event).returnValue = true;
                 return true;
@@ -154,18 +156,21 @@ const ProjectSaverHOC = function (WrappedComponent) {
         }
         updateProjectToStorage () {
             this.props.onShowSavingAlert();
+            this._saveInFlight = true;
             return this.storeProject(this.props.reduxProjectId)
                 .then(() => {
-                    // there's an http response object available here, but we don't need to examine
-                    // it, because there are no values contained in it that we care about
+                    this._saveInFlight = false;
                     this.props.onUpdatedProject(this.props.loadingState);
                     this.props.onShowSaveSuccessAlert();
                 })
                 .catch(err => {
+                    this._saveInFlight = false;
                     // Always show the savingError alert because it gives the
                     // user the chance to download or retry the save manually.
                     this.props.onShowAlert('savingError');
                     this.props.onProjectError(err);
+                    // Reschedule auto-save after a failure so changes are not permanently lost
+                    this.scheduleAutoSave();
                 });
         }
         createNewProjectToStorage () {
@@ -246,6 +251,8 @@ const ProjectSaverHOC = function (WrappedComponent) {
             )
                 .then(() => this.props.onUpdateProjectData(projectId, savedVMState, requestParams))
                 .then(response => {
+                    // Mark unchanged only AFTER both asset uploads AND project data write succeed,
+                    // preventing the dirty flag from clearing while uploads are still in-flight.
                     this.props.onSetProjectUnchanged();
                     const id = response.id.toString();
                     if (id && this.props.onUpdateProjectThumbnail) {
@@ -398,7 +405,7 @@ const ProjectSaverHOC = function (WrappedComponent) {
         vm: PropTypes.instanceOf(VM).isRequired
     };
     ProjectSaverComponent.defaultProps = {
-        autoSaveIntervalSecs: 120,
+        autoSaveIntervalSecs: 60, // was 120 — halved so failures re-try sooner
         onRemixing: () => {},
         onSetProjectThumbnailer: () => {},
         onSetProjectSaver: () => {},

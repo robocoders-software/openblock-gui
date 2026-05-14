@@ -226,6 +226,7 @@ class MenuBar extends React.Component {
             'handleLanguageMouseUp',
             'handleRestoreOption',
             'getSaveToComputerHandler',
+            'getSaveAsHandler',
             'restoreOptionMessage',
             'handleConnectionMouseUp',
             'handleUploadFirmware',
@@ -248,9 +249,13 @@ class MenuBar extends React.Component {
         window.addEventListener('resize', this.handleWindowsResize);
     }
     componentDidUpdate (prevProps) {
-        if (prevProps.isToolboxUpdating !== this.props.isToolboxUpdating && !this.state.isOverflow
-        ) {
+        if (prevProps.isToolboxUpdating !== this.props.isToolboxUpdating && !this.state.isOverflow) {
             this.checkOverflow();
+        }
+        // Notify desktop HOC when dirty state changes so it can update the window title
+        if (prevProps.projectChanged !== this.props.projectChanged &&
+            typeof this.props.onProjectDirtyChanged === 'function') {
+            this.props.onProjectDirtyChanged(!!this.props.projectChanged);
         }
     }
     componentWillUnmount () {
@@ -279,6 +284,13 @@ class MenuBar extends React.Component {
         }
     }
     handleClickNew () {
+        this.props.onRequestCloseFile();
+        // Desktop: onGoHome handles dirty-check and navigation back to the home screen
+        if (this.props.onGoHome) {
+            this.props.onGoHome();
+            return;
+        }
+        // Web: standard new-project flow with save confirmation
         // if the project is dirty, and user owns the project, we will autosave.
         // but if they are not logged in and can't save, user should consider
         // downloading or logging in first.
@@ -287,7 +299,6 @@ class MenuBar extends React.Component {
         const readyToReplaceProject = this.props.confirmReadyToReplaceProject(
             this.props.intl.formatMessage(sharedMessages.replaceProjectWarning)
         );
-        this.props.onRequestCloseFile();
         if (readyToReplaceProject) {
             this.props.onClickNew(this.props.canSave && this.props.canCreateNew);
         }
@@ -354,11 +365,35 @@ class MenuBar extends React.Component {
     handleKeyPress (event) {
         const modifier = bowser.mac ? event.metaKey : event.ctrlKey;
         if (modifier && event.key === 's') {
-            this.props.onClickSave();
             event.preventDefault();
+            /* Ctrl+S: prefer direct-save if available; fall back to download trigger.
+               Guard against _downloadProjectCallback not yet set (early keypress before
+               SB3Downloader renders) to avoid accidental cloud-sync on desktop. */
+            if (this.props.onDirectSave && this._downloadProjectCallback) {
+                this.getSaveToComputerHandler(this._downloadProjectCallback)();
+            } else if (this._downloadProjectCallback) {
+                this._downloadProjectCallback();
+            }
+            // Do nothing if neither is ready yet — SB3Downloader hasn't mounted
         }
     }
+    /* Save — overwrite current file (no dialog); falls back to Save As if no path yet */
     getSaveToComputerHandler (downloadProjectCallback) {
+        return () => {
+            this.props.onRequestCloseFile();
+            if (this.props.onDirectSave) {
+                this.props.onDirectSave(downloadProjectCallback);
+            } else {
+                downloadProjectCallback();
+            }
+            if (this.props.onProjectTelemetryEvent) {
+                const metadata = collectMetadata(this.props.vm, this.props.projectTitle, this.props.locale);
+                this.props.onProjectTelemetryEvent('projectDidSave', metadata);
+            }
+        };
+    }
+    /* Save As — always show the save dialog regardless of current path */
+    getSaveAsHandler (downloadProjectCallback) {
         return () => {
             this.props.onRequestCloseFile();
             downloadProjectCallback();
@@ -649,6 +684,21 @@ class MenuBar extends React.Component {
                                             id="gui.menuBar.new"
                                         />
                                     </MenuItem>
+                                    {this.props.onNewBlocksProject && (
+                                        <MenuItem
+                                            isRtl={this.props.isRtl}
+                                            onClick={() => {
+                                                this.props.onRequestCloseFile();
+                                                this.props.onNewBlocksProject();
+                                            }}
+                                        >
+                                            <FormattedMessage
+                                                defaultMessage="New Blocks"
+                                                description="Menu bar item for creating a new blocks project"
+                                                id="gui.menuBar.newBlocks"
+                                            />
+                                        </MenuItem>
+                                    )}
                                     <MenuItem onClick={this.props.onStartSelectingFileUpload}>
                                         <FormattedMessage
                                             defaultMessage="Open"
@@ -665,6 +715,30 @@ class MenuBar extends React.Component {
                                                 defaultMessage="Save"
                                                 description="Menu bar item for saving the project"
                                                 id="gui.menuBar.save"
+                                            />
+                                        </MenuItem>
+                                    )}</SB3Downloader>
+                                    <SB3Downloader>{(className, downloadProjectCallback) => (
+                                        <MenuItem
+                                            className={className}
+                                            onClick={this.getSaveAsHandler(downloadProjectCallback)}
+                                        >
+                                            <FormattedMessage
+                                                defaultMessage="Save As"
+                                                description="Menu bar item for saving the project as a new file"
+                                                id="gui.menuBar.saveAs"
+                                            />
+                                        </MenuItem>
+                                    )}</SB3Downloader>
+                                    <SB3Downloader extension="sb3">{(className, downloadProjectCallback) => (
+                                        <MenuItem
+                                            className={className}
+                                            onClick={downloadProjectCallback}
+                                        >
+                                            <FormattedMessage
+                                                defaultMessage="Export as .sb3 (Scratch)"
+                                                description="Menu bar item for exporting project as Scratch .sb3 file"
+                                                id="gui.menuBar.exportSb3"
                                             />
                                         </MenuItem>
                                     )}</SB3Downloader>
@@ -801,6 +875,15 @@ class MenuBar extends React.Component {
                                         className={classNames(styles.titleFieldGrowable)}
                                     />
                                 </MenuBarItemTooltip>
+                                {/* Dirty indicator + last-saved timestamp */}
+                                {this.props.projectDirty && (
+                                    <span className={styles.dirtyDot} title="Unsaved changes">●</span>
+                                )}
+                                {this.props.lastSavedAt && !this.props.projectDirty && (
+                                    <span className={styles.lastSavedLabel}>
+                                        {`Saved ${new Date(this.props.lastSavedAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`}
+                                    </span>
+                                )}
                             </div>
                         ) : ((this.props.authorUsername && this.props.authorUsername !== this.props.username) ? (
                             <AuthorInfo
@@ -812,17 +895,21 @@ class MenuBar extends React.Component {
                             />
                         ) : null)}
                         {(this.props.canManageFiles) && (
-                            <SB3Downloader>{(className, downloadProjectCallback) => (
-                                <div
-                                    className={classNames(styles.menuBarItem, styles.hoverable)}
-                                    onClick={this.getSaveToComputerHandler(downloadProjectCallback)}
-                                >
-                                    <img
-                                        className={styles.saveIcon}
-                                        src={saveIcon}
-                                    />
-                                </div>
-                            )}</SB3Downloader>
+                            <SB3Downloader>{(className, downloadProjectCallback) => {
+                                /* Cache for Ctrl+S use */
+                                this._downloadProjectCallback = downloadProjectCallback;
+                                return (
+                                    <div
+                                        className={classNames(styles.menuBarItem, styles.hoverable)}
+                                        onClick={this.getSaveToComputerHandler(downloadProjectCallback)}
+                                    >
+                                        <img
+                                            className={styles.saveIcon}
+                                            src={saveIcon}
+                                        />
+                                    </div>
+                                );
+                            }}</SB3Downloader>
                         )}
                     </div>)}
                 <div className={styles.tailMenu}>
@@ -967,6 +1054,7 @@ MenuBar.propTypes = {
     canManageFiles: PropTypes.bool,
     canRemix: PropTypes.bool,
     canSave: PropTypes.bool,
+    onDirectSave: PropTypes.func,
     canShare: PropTypes.bool,
     className: PropTypes.string,
     confirmReadyToReplaceProject: PropTypes.func,
@@ -1006,6 +1094,8 @@ MenuBar.propTypes = {
     onClickLogin: PropTypes.func,
     onClickLogo: PropTypes.func,
     onClickNew: PropTypes.func,
+    onGoHome: PropTypes.func,
+    onNewBlocksProject: PropTypes.func,
     onClickRemix: PropTypes.func,
     onClickSave: PropTypes.func,
     onClickSaveAsCopy: PropTypes.func,
@@ -1030,6 +1120,10 @@ MenuBar.propTypes = {
     onStartSelectingFileUpload: PropTypes.func,
     onToggleLoginOpen: PropTypes.func,
     projectTitle: PropTypes.string,
+    projectDirty: PropTypes.bool,
+    projectChanged: PropTypes.bool,
+    lastSavedAt: PropTypes.number,
+    onProjectDirtyChanged: PropTypes.func,
     realtimeConnection: PropTypes.bool.isRequired,
     renderLogin: PropTypes.func,
     sessionExists: PropTypes.bool,
@@ -1081,6 +1175,7 @@ const mapStateToProps = (state, ownProps) => {
         locale: state.locales.locale,
         loginMenuOpen: loginMenuOpen(state),
         projectTitle: state.scratchGui.projectTitle,
+        projectChanged: state.scratchGui.projectChanged,
         realtimeConnection: state.scratchGui.connectionModal.realtimeConnection,
         sessionExists: state.session && typeof state.session.session !== 'undefined',
         username: user ? user.username : null,

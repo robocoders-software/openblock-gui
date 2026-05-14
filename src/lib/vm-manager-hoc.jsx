@@ -55,19 +55,20 @@ const vmManagerHOC = function (WrappedComponent) {
             return this.props.vm.loadProject(this.props.projectData)
                 .then(() => {
                     this.props.onLoadedProject(this.props.loadingState, this.props.canSave);
-                    // Wrap in a setTimeout because skin loading in
-                    // the renderer can be async.
-                    setTimeout(() => this.props.onSetProjectUnchanged());
-
-                    // If the vm is not running, call draw on the renderer manually
-                    // This draws the state of the loaded project with no blocks running
-                    // which closely matches the 2.0 behavior, except for monitors–
-                    // 2.0 runs monitors and shows updates (e.g. timer monitor)
-                    // before the VM starts running other hat blocks.
-                    if (!this.props.isStarted) {
-                        // Wrap in a setTimeout because skin loading in
-                        // the renderer can be async.
-                        setTimeout(() => this.props.vm.renderer.draw());
+                    // Skin loading in the renderer is async; use a single rAF so the
+                    // browser has painted before we mark the project clean and draw.
+                    // This prevents the race where onSetProjectUnchanged fires before
+                    // the renderer has finished laying out, causing a stale dirty flag.
+                    const settle = () => {
+                        this.props.onSetProjectUnchanged();
+                        if (!this.props.isStarted && this.props.vm.renderer) {
+                            this.props.vm.renderer.draw();
+                        }
+                    };
+                    if (typeof requestAnimationFrame === 'function') {
+                        requestAnimationFrame(settle);
+                    } else {
+                        setTimeout(settle, 0);
                     }
                 })
                 .catch(e => {

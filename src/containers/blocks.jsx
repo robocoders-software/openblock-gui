@@ -101,6 +101,8 @@ class Blocks extends React.Component {
         this.state = {
             prompt: null
         };
+        this._pendingToolboxReset = false;
+        this._handleNewProject = () => { this._pendingToolboxReset = true; };
         this.onTargetsUpdate = debounce(this.onTargetsUpdate, 100);
         this.toolboxUpdateQueue = [];
     }
@@ -271,8 +273,12 @@ class Blocks extends React.Component {
 
         this.props.onToolboxWillUpdate();
 
-        const categoryId = this.workspace.toolbox_.getSelectedCategoryId();
-        const offset = this.workspace.toolbox_.getCategoryScrollOffset();
+        const categoryId = this._pendingToolboxReset
+            ? null
+            : this.workspace.toolbox_.getSelectedCategoryId();
+        const offset = this._pendingToolboxReset
+            ? 0
+            : this.workspace.toolbox_.getCategoryScrollOffset();
         this.workspace.updateToolbox(this.props.toolboxXML);
         this._renderedToolboxXML = this.props.toolboxXML;
 
@@ -281,12 +287,18 @@ class Blocks extends React.Component {
         // Using the setter function will rerender the entire toolbox which we just rendered.
         this.workspace.toolboxRefreshEnabled_ = true;
 
-        const currentCategoryPos = this.workspace.toolbox_.getCategoryPositionById(categoryId);
-        const currentCategoryLen = this.workspace.toolbox_.getCategoryLengthById(categoryId);
-        if (offset < currentCategoryLen) {
-            this.workspace.toolbox_.setFlyoutScrollPos(currentCategoryPos + offset);
+        if (this._pendingToolboxReset) {
+            // New project: scroll to the top of the first category (Motion)
+            this._pendingToolboxReset = false;
+            this.workspace.toolbox_.setFlyoutScrollPos(0);
         } else {
-            this.workspace.toolbox_.setFlyoutScrollPos(currentCategoryPos);
+            const currentCategoryPos = this.workspace.toolbox_.getCategoryPositionById(categoryId);
+            const currentCategoryLen = this.workspace.toolbox_.getCategoryLengthById(categoryId);
+            if (offset < currentCategoryLen) {
+                this.workspace.toolbox_.setFlyoutScrollPos(currentCategoryPos + offset);
+            } else {
+                this.workspace.toolbox_.setFlyoutScrollPos(currentCategoryPos);
+            }
         }
 
         const queue = this.toolboxUpdateQueue;
@@ -326,8 +338,10 @@ class Blocks extends React.Component {
         this.props.vm.addListener('PERIPHERAL_DISCONNECTED', this.handleStatusButtonUpdate);
         this.props.vm.addListener('CODE_NEED_UPDATE', this.onCodeNeedUpdate);
         this.props.vm.addListener('TOOLBOX_UPLOAD_FINISH', this.handleToolboxUploadFinish);
+        window.addEventListener('robocoders:new-project', this._handleNewProject);
     }
     detachVM () {
+        window.removeEventListener('robocoders:new-project', this._handleNewProject);
         this.props.vm.removeListener('SCRIPT_GLOW_ON', this.onScriptGlowOn);
         this.props.vm.removeListener('SCRIPT_GLOW_OFF', this.onScriptGlowOff);
         this.props.vm.removeListener('BLOCK_GLOW_ON', this.onBlockGlowOn);

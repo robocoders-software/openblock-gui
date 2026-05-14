@@ -1,7 +1,7 @@
 import classNames from 'classnames';
 import omit from 'lodash.omit';
 import PropTypes from 'prop-types';
-import React, {useState, useCallback, useEffect} from 'react';
+import React, {useState, useCallback, useEffect, useRef} from 'react';
 import {defineMessages, FormattedMessage, injectIntl, intlShape} from 'react-intl';
 import {connect} from 'react-redux';
 import MediaQuery from 'react-responsive';
@@ -40,7 +40,7 @@ import layout, {STAGE_SIZE_MODES} from '../../lib/layout-constants';
 import {resolveStageSize} from '../../lib/screen-utils';
 
 import styles from './gui.css';
-import {HomeScreen, MLProjectsPage, MLTrainingPage, CreateProjectModal, deleteProjectIDB} from 'openblock-ml-studio';
+import {MLProjectsPage, MLTrainingPage, CreateProjectModal, deleteProjectFS as deleteProjectIDB} from 'openblock-ml-studio';
 import addExtensionIcon from './icon--extensions.svg';
 import codeIcon from './icon--code.svg';
 import costumesIcon from './icon--costumes.svg';
@@ -140,6 +140,16 @@ const GUIComponent = props => {
         vm,
         isRealtimeMode,
         isScratchDesktop,
+        onDirectSave,
+        // eslint-disable-next-line no-unused-vars
+        projectDirty,
+        // eslint-disable-next-line no-unused-vars
+        lastSavedAt,
+        // eslint-disable-next-line no-unused-vars
+        onProjectDirtyChanged,
+        // eslint-disable-next-line no-unused-vars
+        onClickNew,
+        onGoHome,
         ...componentProps
     } = omit(props, 'dispatch');
     /* ── ML project helpers (defined before hooks) ── */
@@ -155,13 +165,10 @@ const GUIComponent = props => {
     const genMLId = () => Math.random().toString(36).slice(2, 10);
 
     /* ── All hooks at the top level (before any conditional returns) ── */
-    const [showHomeScreen, setShowHomeScreen] = useState(!isScratchDesktop);
-
-    // Keep showHomeScreen in sync with isScratchDesktop so HMR / late prop delivery works.
-    // In desktop, isScratchDesktop is always true → hide HomeScreen immediately.
-    useEffect(() => {
-        if (isScratchDesktop) setShowHomeScreen(false);
-    }, [isScratchDesktop]);
+    const [mlBlocksLoading, setMlBlocksLoading] = useState(false);
+    // Set when user clicks "Use in Blocks"; cleared by the useEffect below once
+    // the blocks tab is actually visible in the DOM and Blockly has been painted.
+    const pendingMLSwitchRef = useRef(false);
     const [mlProjects,      setMlProjects]     = useState(loadMLProjects);
     const [mlView,          setMlView]         = useState('projects');
     const [activeMLProject, setActiveMLProject] = useState(null);
@@ -233,14 +240,67 @@ const GUIComponent = props => {
 
     useEffect(() => { saveMLProjects(mlProjects); }, [mlProjects]);
 
-    // Pre-load teachableMachine when ML tab opens so blocks are ready on first export
+    // Re-sync with localStorage when ML tab becomes visible so that projects
+    // created in the full-screen ML Studio (app.jsx) are reflected here.
     useEffect(() => {
-        if (mlTabVisible && vm && vm.extensionManager &&
-            !vm.extensionManager.isExtensionLoaded('teachableMachine')) {
-            vm.extensionManager.loadExtensionURL('teachableMachine')
-                .catch(e => console.warn('[ML] extension pre-load failed:', e));
+        if (mlTabVisible) setMlProjects(loadMLProjects());
+    }, [mlTabVisible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Clear transient ML loading state when the desktop starts a fresh blocks project.
+    // ML project list and the active training view are intentionally preserved —
+    // the user's projects stay intact; they can re-export a model if needed.
+    useEffect(() => {
+        const handler = () => {
+            setMlBlocksLoading(false);
+            pendingMLSwitchRef.current = false;
+        };
+        window.addEventListener('robocoders:new-project', handler);
+        return () => window.removeEventListener('robocoders:new-project', handler);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Load/unload teachableMachine as the ML tab opens or closes.
+    // Pre-load on open so "Use in Blocks" is instant; unload on close only if
+    // the user didn't export a model AND the project has no existing ML blocks
+    // (i.e. the extension wasn't part of the saved project).
+    useEffect(() => {
+        if (!vm || !vm.extensionManager) return;
+        if (mlTabVisible) {
+            if (!vm.extensionManager.isExtensionLoaded('teachableMachine')) {
+                vm.extensionManager.loadExtensionURL('teachableMachine')
+                    .catch(e => console.warn('[ML] extension pre-load failed:', e));
+            }
+        } else if (vm.extensionManager.isExtensionLoaded('teachableMachine') &&
+                   !window.__openblockMLModel) {
+            const hasMLBlocks = vm.runtime && vm.runtime.targets &&
+                vm.runtime.targets.some(t =>
+                    Object.values(t.blocks._blocks || {}).some(b =>
+                        b.opcode && b.opcode.startsWith('teachableMachine_')
+                    )
+                );
+            if (!hasMLBlocks) vm.extensionManager.unloadExtension('teachableMachine');
         }
     }, [mlTabVisible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // When the user clicks "← Back" in the full-screen ML Studio without exporting,
+    // unload the teachableMachine extension — but only if the project itself has no
+    // ML blocks (extension came from ML Studio, not from the saved project).
+    useEffect(() => {
+        if (!vm || !vm.extensionManager) return;
+        const handler = () => {
+            if (vm.extensionManager.isExtensionLoaded('teachableMachine') &&
+                !window.__openblockMLModel) {
+                const hasMLBlocks = vm.runtime && vm.runtime.targets &&
+                    vm.runtime.targets.some(t =>
+                        Object.values(t.blocks._blocks || {}).some(b =>
+                            b.opcode && b.opcode.startsWith('teachableMachine_')
+                        )
+                    );
+                if (!hasMLBlocks) vm.extensionManager.unloadExtension('teachableMachine');
+            }
+        };
+        window.addEventListener('robocoders:ml-back', handler);
+        return () => window.removeEventListener('robocoders:ml-back', handler);
+    }, [vm]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Desktop path: when WrappedGui first mounts after an ML export, the project is not
     // yet loaded (targets are null), so we must wait for the first targetsUpdate before
@@ -271,15 +331,72 @@ const GUIComponent = props => {
         return () => vm.removeListener('targetsUpdate', onTargetsReady);
     }, [vm]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // When blocks tab becomes visible and teachableMachine is loaded, force a toolbox refresh
-    // This guarantees the ML blocks appear even if the first toolbox update happened while hidden
+    // When blocks tab becomes visible and teachableMachine is loaded, force a toolbox refresh.
+    // 300ms gives Blockly enough time to measure SVG text with the container fully laid out,
+    // preventing the compressed/truncated block rendering bug on project reopen.
     useEffect(() => {
         if (!blocksTabVisible || !vm || !vm.extensionManager) return;
         if (!vm.extensionManager.isExtensionLoaded('teachableMachine')) return;
-        const t = setTimeout(() => {
-            vm.extensionManager.refreshBlocks();
-        }, 100);
-        return () => clearTimeout(t);
+        const refresh = () => {
+            vm.extensionManager.refreshBlocks()
+                .catch(() => {})
+                .finally(() => {
+                    // After refreshBlocks, force workspace rebuild so toolbox picks up ML blocks
+                    if (vm.editingTarget) vm.refreshWorkspace();
+                });
+        };
+        const t1 = setTimeout(refresh, 300);
+        // Second pass in case the first fires before layout settles
+        const t2 = setTimeout(refresh, 700);
+        return () => { clearTimeout(t1); clearTimeout(t2); };
+    }, [blocksTabVisible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Complete a pending "Use in Blocks" export once the blocks panel is actually
+    // painted and Blockly's container has real dimensions.
+    //
+    // useEffect runs after React has committed the DOM, so display:none is already
+    // removed from the blocks panel when this fires — safe to call refreshBlocks().
+    useEffect(() => {
+        if (!pendingMLSwitchRef.current) return;
+        if (!blocksTabVisible) return;
+        if (!vm || !vm.extensionManager) return;
+        pendingMLSwitchRef.current = false;
+
+        const doRefresh = () => {
+            // refreshBlocks() fires _refreshExtensionPrimitives via a fire-and-forget
+            // dispatch.call — it resolves before BLOCKSINFO_UPDATE is emitted.
+            // After it returns, explicitly call refreshWorkspace() so that
+            // onWorkspaceUpdate() → getToolboxXML() → updateToolboxState() runs with
+            // the freshly-populated _blockInfo, guaranteeing the toolbox is rebuilt.
+            vm.extensionManager.refreshBlocks()
+                .catch(() => {})
+                .finally(() => {
+                    setTimeout(() => {
+                        // Force workspace update so Blocks container rebuilds toolbox
+                        // from _blockInfo which now includes the ML extension.
+                        if (vm.editingTarget) {
+                            vm.refreshWorkspace();
+                        }
+                        // Second refreshBlocks pass for safety
+                        setTimeout(() => {
+                            vm.extensionManager.refreshBlocks().catch(() => {});
+                            setMlBlocksLoading(false);
+                        }, 300);
+                    }, 100);
+                });
+        };
+
+        if (vm.extensionManager.isExtensionLoaded('teachableMachine')) {
+            // Extension already loaded; give Blockly 150ms to finish layout
+            setTimeout(doRefresh, 150);
+        } else {
+            vm.extensionManager.loadExtensionURL('teachableMachine')
+                .then(() => setTimeout(doRefresh, 150))
+                .catch(e => {
+                    console.warn('[ML] extension load failed:', e);
+                    setMlBlocksLoading(false);
+                });
+        }
     }, [blocksTabVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
     /* ── Early return for children prop (after all hooks) ── */
@@ -296,37 +413,15 @@ const GUIComponent = props => {
         tabSelected: classNames(tabStyles.reactTabsTabSelected, styles.isSelected)
     };
 
-    // Load extension FIRST so toolbox XML is populated before blocks tab becomes visible
+    // Mark that we need to load the ML extension into Blockly, then switch to the
+    // blocks tab.  The actual extension load + refreshBlocks happens in the useEffect
+    // above, which runs after React has painted the blocks panel — guaranteeing that
+    // Blockly's container has real dimensions before we measure SVG text.
     const loadMLExtensionAndSwitch = useCallback(() => {
-        if (!vm || !vm.extensionManager) {
-            onActivateBlocksTab();
-            return;
-        }
-        const doSwitch = () => setTimeout(onActivateBlocksTab, 50);
-        if (vm.extensionManager.isExtensionLoaded('teachableMachine')) {
-            vm.extensionManager.refreshBlocks().then(doSwitch);
-        } else {
-            vm.extensionManager.loadExtensionURL('teachableMachine')
-                .then(() => setTimeout(doSwitch, 0))
-                .catch(e => {
-                    console.warn('[ML] extension load failed:', e);
-                    onActivateBlocksTab();
-                });
-        }
-    }, [vm, onActivateBlocksTab]);
-
-    const handleSelectMode = modeId => {
-        setShowHomeScreen(false);
-        if (modeId === 'aiml') {
-            onActivateMLTab();
-        } else {
-            loadMLExtensionAndSwitch();
-        }
-    };
-
-    if (showHomeScreen) {
-        return <HomeScreen onSelectMode={handleSelectMode} />;
-    }
+        pendingMLSwitchRef.current = true;
+        setMlBlocksLoading(true);
+        onActivateBlocksTab();
+    }, [onActivateBlocksTab]);
 
     if (isRendererSupported === null) {
         isRendererSupported = Renderer.isSupported();
@@ -373,6 +468,9 @@ const GUIComponent = props => {
                 ) : null}
                 {isCreating ? (
                     <Loader messageId="gui.loader.creating" />
+                ) : null}
+                {mlBlocksLoading ? (
+                    <Loader messageId="gui.loader.message4" />
                 ) : null}
                 {isRendererSupported ? null : (
                     <WebGlModal isRtl={isRtl} />
@@ -453,6 +551,12 @@ const GUIComponent = props => {
                     onClickCheckUpdate={onClickCheckUpdate}
                     onClickClearCache={onClickClearCache}
                     onClickInstallDriver={onClickInstallDriver}
+                    onDirectSave={onDirectSave}
+                    onGoHome={onGoHome}
+                    onNewBlocksProject={props.onNewBlocksProject}
+                    projectDirty={props.projectDirty}
+                    lastSavedAt={props.lastSavedAt}
+                    onProjectDirtyChanged={props.onProjectDirtyChanged}
                 />
                 <Box className={styles.bodyWrapper}>
                     <Box className={styles.flexWrapper}>
@@ -571,7 +675,7 @@ const GUIComponent = props => {
                                                 <>
                                                     <MLProjectsPage
                                                         projects={mlProjects}
-                                                        onBack={() => setShowHomeScreen(true)}
+                                                        onBack={onActivateBlocksTab}
                                                         onCreate={() => setShowCreateModal(true)}
                                                         onOpen={p => { setActiveMLProject(p); setMlView('training'); }}
                                                         onDelete={deleteMLProject}

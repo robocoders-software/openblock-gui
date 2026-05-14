@@ -26,12 +26,20 @@ class SB3Downloader extends React.Component {
         ]);
     }
     downloadProject () {
-        this.props.saveProjectSb3().then(content => {
-            if (this.props.onSaveFinished) {
-                this.props.onSaveFinished();
-            }
-            downloadBlob(this.props.projectFilename, content);
-        });
+        this.props.saveProjectSb3()
+            .then(content => {
+                if (this.props.onSaveFinished) {
+                    this.props.onSaveFinished();
+                }
+                downloadBlob(this.props.projectFilename, content);
+            })
+            .catch(err => {
+                // eslint-disable-next-line no-console
+                console.error('Failed to serialize project for download:', err);
+                if (this.props.onSaveFinished) {
+                    this.props.onSaveFinished();
+                }
+            });
     }
     render () {
         const {
@@ -44,28 +52,35 @@ class SB3Downloader extends React.Component {
     }
 }
 
-const getProjectFilename = (curTitle, defaultTitle) => {
+const getProjectFilename = (curTitle, defaultTitle, extension) => {
     let filenameTitle = curTitle;
     if (!filenameTitle || filenameTitle.length === 0) {
         filenameTitle = defaultTitle;
     }
-    return `${filenameTitle.substring(0, 100)}.ob`;
+    const ext = extension || 'ob';
+    return `${filenameTitle.substring(0, 100)}.${ext}`;
 };
 
 SB3Downloader.propTypes = {
     children: PropTypes.func,
     className: PropTypes.string,
+    extension: PropTypes.string,
     onSaveFinished: PropTypes.func,
     projectFilename: PropTypes.string,
     saveProjectSb3: PropTypes.func
 };
 SB3Downloader.defaultProps = {
-    className: ''
+    className: '',
+    extension: 'ob'
 };
 
-const mapStateToProps = state => ({
+const mapStateToProps = (state, ownProps) => ({
     saveProjectSb3: state.scratchGui.vm.saveProjectSb3.bind(state.scratchGui.vm),
-    projectFilename: getProjectFilename(state.scratchGui.projectTitle, projectTitleInitialState)
+    projectFilename: getProjectFilename(
+        state.scratchGui.projectTitle,
+        projectTitleInitialState,
+        ownProps.extension
+    )
 });
 
 export default connect(

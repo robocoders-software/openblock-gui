@@ -87,36 +87,55 @@ const SBFileUploaderHOC = function (WrappedComponent) {
         }
         // step 3: user has picked a file using the file chooser dialog.
         // We don't actually load the file here, we only decide whether to do so.
-        handleChange (e) {
-            const {
-                intl,
-                isShowingWithoutId,
-                loadingState,
-                projectChanged,
-                userOwnsProject
-            } = this.props;
+        async handleChange (e) {
+            const {projectChanged} = this.props;
             const thisFileInput = e.target;
-            if (thisFileInput.files) { // Don't attempt to load if no file was selected
-                this.fileToUpload = thisFileInput.files[0];
+            if (!thisFileInput.files) return;
 
-                // If user owns the project, or user has changed the project,
-                // we must confirm with the user that they really intend to
-                // replace it. (If they don't own the project and haven't
-                // changed it, no need to confirm.)
-                let uploadAllowed = true;
-                if (userOwnsProject || (projectChanged && isShowingWithoutId)) {
-                    uploadAllowed = this.props.onShowMessageBox(MessageBoxType.confirm,
-                        intl.formatMessage(sharedMessages.replaceProjectWarning));
-                }
-                if (uploadAllowed) {
-                    // cues step 4
-                    this.props.requestProjectUpload(loadingState);
-                } else {
-                    // skips ahead to step 7
+            this.fileToUpload = thisFileInput.files[0];
+
+            if (projectChanged) {
+                const choice = await this.showSaveBeforeOpenDialog();
+                if (choice === 'cancel') {
                     this.removeFileObjects();
+                    this.props.closeFileMenu();
+                    return;
                 }
-                this.props.closeFileMenu();
+                // 'discard' falls through — skip save, open anyway
+                if (choice === 'save' && this.props.onSaveBeforeOpen) {
+                    await this.props.onSaveBeforeOpen();
+                }
             }
+
+            /* Blank the workspace immediately so old blocks don't show during load */
+            this.props.onLoadingStarted();
+            this.props.requestProjectUpload(this.props.loadingState);
+            this.props.closeFileMenu();
+        }
+
+        /* Returns a promise resolving to 'save', 'discard', or 'cancel'. */
+        showSaveBeforeOpenDialog () {
+            return new Promise(resolve => {
+                try {
+                    const {dialog} = window.require('@electron/remote');
+                    // 0 = Save & Open, 1 = Don't Save, 2 = Cancel
+                    const idx = dialog.showMessageBoxSync({
+                        type: 'question',
+                        buttons: ['Save & Open', "Don't Save", 'Cancel'],
+                        defaultId: 0,
+                        cancelId: 2,
+                        title: 'Unsaved Changes',
+                        message: 'You have unsaved changes.',
+                        detail: 'Save your project before opening another?'
+                    });
+                    if (idx === 0) resolve('save');
+                    else if (idx === 1) resolve('discard');
+                    else resolve('cancel');
+                } catch (_) {
+                    /* Fallback for non-Electron environments */
+                    resolve(window.confirm('Save your project before opening another?') ? 'save' : 'discard');
+                }
+            });
         }
         // step 4 is below, in mapDispatchToProps
 
@@ -124,8 +143,13 @@ const SBFileUploaderHOC = function (WrappedComponent) {
         // that project data has finished "uploading" into the browser
         handleFinishedLoadingUpload () {
             if (this.fileToUpload && this.fileReader) {
-                // begin to read data from the file. When finished,
-                // cues step 6 using the reader's onload callback
+                // Wire up progress so the loading overlay shows real feedback for large files
+                this.fileReader.onprogress = e => {
+                    if (e.lengthComputable && e.total > 0) {
+                        const pct = Math.round((e.loaded / e.total) * 100);
+                        log.log(`[sb-file-uploader] Reading file: ${pct}%`);
+                    }
+                };
                 this.fileReader.readAsArrayBuffer(this.fileToUpload);
             } else {
                 this.props.cancelFileUpload(this.props.loadingState);
@@ -136,9 +160,8 @@ const SBFileUploaderHOC = function (WrappedComponent) {
         // used in step 6 below
         getProjectTitleFromFilename (fileInputFilename) {
             if (!fileInputFilename) return '';
-            // only parse title with valid scratch project extensions
-            // (.ob .sb, .sb2, and .sb3)
-            const matches = fileInputFilename.match(/^(.*)\.((ob)|(sb[23]))?$/);
+            // parse title from all supported extensions: .ob, .sb, .sb2, .sb3
+            const matches = fileInputFilename.match(/^(.*)\.(ob|sb[23]?)$/i);
             if (!matches) return '';
             return matches[1].substring(0, 100); // truncate project title to max 100 chars
         }
@@ -148,8 +171,37 @@ const SBFileUploaderHOC = function (WrappedComponent) {
             if (this.fileReader) {
                 this.props.onLoadingStarted();
                 const filename = this.fileToUpload && this.fileToUpload.name;
+                /* Inform main process of the opened file path so ML data can be extracted */
+                try {
+                    const filePath = this.fileToUpload && this.fileToUpload.path;
+                    if (filePath && /\.(ob|sb3?)$/i.test(filePath)) {
+                        const {ipcRenderer: ipc} = window.require('electron');
+                        ipc.send('ml-update-current-file', filePath);
+                        const fileTitle = this.getProjectTitleFromFilename(filename);
+                        ipc.invoke('add-recent-file', filePath, fileTitle).catch(() => {});
+                    }
+                } catch (_) { /* not in Electron */ }
+                // Validate file before passing to VM: must be a ZIP (PK magic) or JSON
+                const result = this.fileReader.result;
+                const header = new Uint8Array(result instanceof ArrayBuffer ? result : new ArrayBuffer(0), 0, 4);
+                const isZip  = header[0] === 0x50 && header[1] === 0x4B; // PK magic
+                const isJson = (function () {
+                    try {
+                        const text = new TextDecoder().decode(new Uint8Array(result, 0, Math.min(4096, result.byteLength)));
+                        return text.trimStart().startsWith('{');
+                    } catch (_) { return false; }
+                }());
+                if (!isZip && !isJson) {
+                    log.warn('[sb-file-uploader] Rejected file with unrecognized format:', filename);
+                    this.props.onShowMessageBox(MessageBoxType.alert,
+                        `This file doesn't appear to be a valid project file (.ob, .sb3).\n\nPlease choose a valid project file.`
+                    );
+                    this.props.onLoadingFinished(this.props.loadingState, false);
+                    this.removeFileObjects();
+                    return;
+                }
                 let loadingSuccess = false;
-                this.props.vm.loadProject(this.fileReader.result)
+                this.props.vm.loadProject(result)
                     .then(() => {
                         if (filename) {
                             const uploadedProjectTitle = this.getProjectTitleFromFilename(filename);
@@ -158,7 +210,7 @@ const SBFileUploaderHOC = function (WrappedComponent) {
                         loadingSuccess = true;
                     })
                     .catch(error => {
-                        log.warn(error);
+                        log.warn('[sb-file-uploader] loadProject failed:', error);
                         this.props.onShowMessageBox(MessageBoxType.alert,
                             `${this.props.intl.formatMessage(messages.loadError)}\n${error}`);
                     })
@@ -191,6 +243,7 @@ const SBFileUploaderHOC = function (WrappedComponent) {
                 loadingState,
                 onLoadingFinished,
                 onLoadingStarted,
+                onSaveBeforeOpen,
                 onSetProjectTitle,
                 projectChanged,
                 requestProjectUpload: requestProjectUploadProp,
@@ -219,6 +272,7 @@ const SBFileUploaderHOC = function (WrappedComponent) {
         loadingState: PropTypes.oneOf(LoadingStates),
         onLoadingFinished: PropTypes.func,
         onLoadingStarted: PropTypes.func,
+        onSaveBeforeOpen: PropTypes.func,
         onSetProjectTitle: PropTypes.func,
         onShowMessageBox: PropTypes.func.isRequired,
         projectChanged: PropTypes.bool,
@@ -242,12 +296,16 @@ const SBFileUploaderHOC = function (WrappedComponent) {
         };
     };
     const mapDispatchToProps = (dispatch, ownProps) => ({
-        cancelFileUpload: loadingState => dispatch(onLoadedProject(loadingState, false, false)),
+        cancelFileUpload: loadingState => {
+            dispatch(onLoadedProject(loadingState, false, false));
+            dispatch(closeLoadingProject());
+        },
         closeFileMenu: () => dispatch(closeFileMenu()),
         // transition project state from loading to regular, and close
         // loading screen and file menu
         onLoadingFinished: (loadingState, success) => {
-            dispatch(onLoadedProject(loadingState, ownProps.canSave, success));
+            const action = onLoadedProject(loadingState, ownProps.canSave, success);
+            if (action) dispatch(action);
             dispatch(closeLoadingProject());
             dispatch(closeFileMenu());
         },
