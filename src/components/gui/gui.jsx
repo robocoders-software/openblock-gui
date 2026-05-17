@@ -149,6 +149,8 @@ const GUIComponent = props => {
         onProjectDirtyChanged,
         // eslint-disable-next-line no-unused-vars
         onClickNew,
+        // eslint-disable-next-line no-unused-vars
+        onNewBlocksProject,
         onGoHome,
         ...componentProps
     } = omit(props, 'dispatch');
@@ -281,54 +283,129 @@ const GUIComponent = props => {
         }
     }, [mlTabVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // When the user clicks "← Back" in the full-screen ML Studio without exporting,
-    // unload the teachableMachine extension — but only if the project itself has no
-    // ML blocks (extension came from ML Studio, not from the saved project).
+    // When the user clicks "← Back" in the full-screen ML Studio:
+    // • No model (null) → unload extension unconditionally. The model is gone (deleted or
+    //   never exported), so any workspace blocks that reference it are non-functional.
+    //   Unloading turns them into "unknown" blocks — a clear signal to the user.
+    // • Model present → keep extension and refresh so Blockly re-measures block text.
     useEffect(() => {
         if (!vm || !vm.extensionManager) return;
         const handler = () => {
-            if (vm.extensionManager.isExtensionLoaded('teachableMachine') &&
-                !window.__openblockMLModel) {
-                const hasMLBlocks = vm.runtime && vm.runtime.targets &&
-                    vm.runtime.targets.some(t =>
-                        Object.values(t.blocks._blocks || {}).some(b =>
-                            b.opcode && b.opcode.startsWith('teachableMachine_')
-                        )
-                    );
-                if (!hasMLBlocks) vm.extensionManager.unloadExtension('teachableMachine');
+            if (!vm.extensionManager.isExtensionLoaded('teachableMachine')) return;
+            if (!window.__openblockMLModel) {
+                vm.extensionManager.unloadExtension('teachableMachine');
+                return;
             }
+            // Extension stays loaded — do a delayed refresh so Blockly has time to
+            // measure SVG text after the blocks panel becomes visible again.
+            setTimeout(() => {
+                vm.extensionManager.refreshBlocks()
+                    .catch(() => {})
+                    .finally(() => { if (vm.editingTarget) vm.refreshWorkspace(); });
+                setTimeout(() => vm.extensionManager.refreshBlocks().catch(() => {}), 400);
+            }, 300);
         };
         window.addEventListener('robocoders:ml-back', handler);
         return () => window.removeEventListener('robocoders:ml-back', handler);
     }, [vm]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Desktop path: when WrappedGui first mounts after an ML export, the project is not
-    // yet loaded (targets are null), so we must wait for the first targetsUpdate before
-    // loading the extension and refreshing — otherwise getToolboxXML() returns null and
-    // the toolbox never picks up the ML blocks.
+    // Desktop path: when WrappedGui first mounts after an ML export OR when a .ob file
+    // with embedded ML data is opened, pre-populate window.__openblockMLModel from the
+    // ZIP's ml/*/project.json so the extension loads with the correct block type.
     useEffect(() => {
         if (!vm || !vm.extensionManager) return;
-        if (typeof window === 'undefined' || !window.__openblockMLModel) return;
         if (vm.extensionManager.isExtensionLoaded('teachableMachine')) return;
 
+        let cancelled = false;
+        let targetsListener = null;
+
         const doLoad = () => {
+            if (cancelled) return;
             vm.extensionManager.loadExtensionURL('teachableMachine')
                 .then(() => vm.extensionManager.refreshBlocks())
                 .catch(e => console.warn('[ML] auto-load failed:', e));
         };
 
-        // If the project already has targets (e.g. visited blocks first), load now.
-        if (vm.runtime.targets && vm.runtime.targets.length > 0) {
-            doLoad();
-            return;
-        }
-        // Otherwise wait for the first targetsUpdate (project finished loading).
-        const onTargetsReady = () => {
-            vm.removeListener('targetsUpdate', onTargetsReady);
-            doLoad();
+        const scheduleLoad = () => {
+            if (cancelled) return;
+            if (vm.runtime.targets && vm.runtime.targets.length > 0) {
+                doLoad();
+            } else {
+                targetsListener = () => {
+                    vm.removeListener('targetsUpdate', targetsListener);
+                    targetsListener = null;
+                    doLoad();
+                };
+                vm.addListener('targetsUpdate', targetsListener);
+            }
         };
-        vm.addListener('targetsUpdate', onTargetsReady);
-        return () => vm.removeListener('targetsUpdate', onTargetsReady);
+
+        (async () => {
+            // If not set yet, try reading ML metadata from the currently open .ob file.
+            if (!window.__openblockMLModel) {
+                try {
+                    const ipc = window.require && window.require('electron').ipcRenderer;
+                    if (ipc) {
+                        const meta = await ipc.invoke('ml-preload-active-model');
+                        if (!cancelled && meta && meta.type && !meta.noMlData) {
+                            window.__openblockMLModel = {
+                                projectId: meta.id,
+                                projectName: meta.name,
+                                type: meta.type,
+                                labels: meta.labels || [],
+                                trainingStatus: meta.trained ? 'ready' : 'idle'
+                            };
+                        }
+                    }
+                } catch (_) { /* not in Electron context */ }
+            }
+            if (!cancelled && window.__openblockMLModel) {
+                scheduleLoad();
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+            if (targetsListener) vm.removeListener('targetsUpdate', targetsListener);
+        };
+    }, [vm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // After every project load: verify that ML model data exists in the .ob file.
+    // If teachableMachine was serialised into the project (from a prior "Use in Blocks") but
+    // the bundled ml/ data is gone (project deleted, or never bundled), unload the extension
+    // so the workspace blocks appear as "unknown" — a clear visual signal to the user.
+    // If the data IS present, set window.__openblockMLModel so the correct block set shows.
+    useEffect(() => {
+        if (!vm || !vm.extensionManager) return;
+
+        const handler = async () => {
+            if (!vm.extensionManager.isExtensionLoaded('teachableMachine')) return;
+            try {
+                const ipc = window.require && window.require('electron').ipcRenderer;
+                if (!ipc) return;
+                const meta = await ipc.invoke('ml-preload-active-model');
+                if (meta && meta.type && !meta.noMlData) {
+                    // Data found — populate the model ref so the extension shows the right block set
+                    if (!window.__openblockMLModel) {
+                        window.__openblockMLModel = {
+                            projectId:      meta.id,
+                            projectName:    meta.name,
+                            type:           meta.type,
+                            labels:         meta.labels || [],
+                            trainingStatus: meta.trained ? 'ready' : 'idle'
+                        };
+                    }
+                    vm.extensionManager.refreshBlocks().catch(() => {});
+                } else {
+                    // No ML data in this file — unload so blocks turn "unknown" (model missing)
+                    window.__openblockMLModel = null;
+                    vm.extensionManager.unloadExtension('teachableMachine');
+                }
+            } catch (_) { /* not in Electron */ }
+        };
+
+        vm.runtime.on('PROJECT_LOADED', handler);
+        return () => vm.runtime.removeListener('PROJECT_LOADED', handler);
     }, [vm]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // When blocks tab becomes visible and teachableMachine is loaded, force a toolbox refresh.
@@ -386,18 +463,71 @@ const GUIComponent = props => {
                 });
         };
 
-        if (vm.extensionManager.isExtensionLoaded('teachableMachine')) {
-            // Extension already loaded; give Blockly 150ms to finish layout
-            setTimeout(doRefresh, 150);
-        } else {
+        // Force unload → reload so re-exporting a different model type doesn't
+        // merge old and new blocks in the toolbox.
+        const loadAndRefresh = () => {
             vm.extensionManager.loadExtensionURL('teachableMachine')
                 .then(() => setTimeout(doRefresh, 150))
                 .catch(e => {
                     console.warn('[ML] extension load failed:', e);
                     setMlBlocksLoading(false);
                 });
+        };
+
+        if (vm.extensionManager.isExtensionLoaded('teachableMachine')) {
+            try { vm.extensionManager.unloadExtension('teachableMachine'); } catch (_) {}
+            setTimeout(loadAndRefresh, 100);
+        } else {
+            loadAndRefresh();
         }
     }, [blocksTabVisible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Handle "Use in Blocks" from the standalone MLStudioApp when WrappedGui is already
+    // alive. app.jsx dispatches robocoders:ml-export-to-blocks so we can reload the
+    // extension cleanly without resetting the project.
+    // We always UNLOAD then RELOAD the extension so that stale block definitions from a
+    // previous export (different model type or labels) are fully cleared before the new
+    // ones are registered — prevents image+text blocks merging in the toolbox.
+    useEffect(() => {
+        const handler = () => {
+            if (!vm || !vm.extensionManager) return;
+            setMlBlocksLoading(true);
+
+            const doRefresh = () => {
+                vm.extensionManager.refreshBlocks()
+                    .catch(() => {})
+                    .finally(() => {
+                        setTimeout(() => {
+                            if (vm.editingTarget) vm.refreshWorkspace();
+                            setTimeout(() => {
+                                vm.extensionManager.refreshBlocks().catch(() => {});
+                                setMlBlocksLoading(false);
+                            }, 300);
+                        }, 100);
+                    });
+            };
+
+            const loadAndRefresh = () => {
+                vm.extensionManager.loadExtensionURL('teachableMachine')
+                    .then(() => setTimeout(doRefresh, 150))
+                    .catch(e => {
+                        console.warn('[ML] export-to-blocks load failed:', e);
+                        setMlBlocksLoading(false);
+                    });
+            };
+
+            // Force a clean unload → reload cycle every time so the toolbox only
+            // contains the current model's blocks (avoids merging on re-export).
+            if (vm.extensionManager.isExtensionLoaded('teachableMachine')) {
+                try { vm.extensionManager.unloadExtension('teachableMachine'); } catch (_) {}
+                setTimeout(loadAndRefresh, 100);
+            } else {
+                loadAndRefresh();
+            }
+        };
+        window.addEventListener('robocoders:ml-export-to-blocks', handler);
+        return () => window.removeEventListener('robocoders:ml-export-to-blocks', handler);
+    }, [vm]); // eslint-disable-line react-hooks/exhaustive-deps
 
     /* ── Early return for children prop (after all hooks) ── */
     if (children) {

@@ -314,10 +314,50 @@ class MenuBar extends React.Component {
     }
     handleOpenMLEnv () {
         this.props.onRequestCloseFile();
-        this.props.onActivateMLTab();
+        window.dispatchEvent(new CustomEvent('robocoders:open-ml'));
     }
     handleOpenRoboticsEnv () {
         this.props.onRequestCloseFile();
+
+        const showDialog = (opts, fallbackMsg) => {
+            try {
+                const {dialog} = window.require('@electron/remote');
+                return dialog.showMessageBoxSync(opts);
+            } catch (_) {
+                return window.confirm(fallbackMsg) ? 0 : 1;
+            }
+        };
+
+        if (!this.props.deviceId) {
+            // No device selected — ask the user to pick one first
+            const idx = showDialog({
+                type: 'info',
+                title: 'No Device Selected',
+                message: 'Please select a device first.',
+                detail: 'The Robotics Environment works best when a device is selected.\n' +
+                        'Click "Select Device" to open the device library, or "Cancel" to go back.',
+                buttons: ['Select Device', 'Cancel'],
+                defaultId: 0,
+                cancelId: 1
+            }, 'No device selected. Open device library?');
+            if (idx === 0) this.props.onOpenDeviceLibrary();
+            return;
+        }
+
+        // Device is selected — confirm before switching to Program Mode
+        const idx = showDialog({
+            type: 'info',
+            title: 'Open Robotics Environment',
+            message: 'Opening Robotics Environment will switch to Program Mode.',
+            detail: 'Make sure your device is connected for full functionality.\n' +
+                    'Click "Open" to proceed, or "Cancel" to go back.',
+            buttons: ['Open', 'Cancel'],
+            defaultId: 0,
+            cancelId: 1
+        }, 'Open Robotics Environment and switch to Program Mode?');
+
+        if (idx !== 0) return;
+
         if (this.props.isRealtimeMode) {
             this.props.vm.runtime.setRealtimeMode(false);
             this.props.onSetUploadMode();
@@ -727,18 +767,6 @@ class MenuBar extends React.Component {
                                                 defaultMessage="Save As"
                                                 description="Menu bar item for saving the project as a new file"
                                                 id="gui.menuBar.saveAs"
-                                            />
-                                        </MenuItem>
-                                    )}</SB3Downloader>
-                                    <SB3Downloader extension="sb3">{(className, downloadProjectCallback) => (
-                                        <MenuItem
-                                            className={className}
-                                            onClick={downloadProjectCallback}
-                                        >
-                                            <FormattedMessage
-                                                defaultMessage="Export as .sb3 (Scratch)"
-                                                description="Menu bar item for exporting project as Scratch .sb3 file"
-                                                id="gui.menuBar.exportSb3"
                                             />
                                         </MenuItem>
                                     )}</SB3Downloader>

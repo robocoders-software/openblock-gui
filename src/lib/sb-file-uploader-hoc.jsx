@@ -167,15 +167,17 @@ const SBFileUploaderHOC = function (WrappedComponent) {
         }
         // step 6: attached as a handler on our FileReader object; called when
         // file upload raw data is available in the reader
-        onload () {
+        async onload () {
             if (this.fileReader) {
                 this.props.onLoadingStarted();
                 const filename = this.fileToUpload && this.fileToUpload.name;
+                let _mlIpc = null;
                 /* Inform main process of the opened file path so ML data can be extracted */
                 try {
                     const filePath = this.fileToUpload && this.fileToUpload.path;
                     if (filePath && /\.(ob|sb3?)$/i.test(filePath)) {
                         const {ipcRenderer: ipc} = window.require('electron');
+                        _mlIpc = ipc;
                         ipc.send('ml-update-current-file', filePath);
                         const fileTitle = this.getProjectTitleFromFilename(filename);
                         ipc.invoke('add-recent-file', filePath, fileTitle).catch(() => {});
@@ -199,6 +201,23 @@ const SBFileUploaderHOC = function (WrappedComponent) {
                     this.props.onLoadingFinished(this.props.loadingState, false);
                     this.removeFileObjects();
                     return;
+                }
+                // Pre-populate window.__openblockMLModel so the teachableMachine extension
+                // initialises with the correct block type (text/image/sounds) when the
+                // project loads, preventing image blocks appearing for text/audio models.
+                if (_mlIpc) {
+                    try {
+                        const meta = await _mlIpc.invoke('ml-preload-active-model');
+                        if (meta && meta.type && !meta.noMlData) {
+                            window.__openblockMLModel = {
+                                projectId: meta.id,
+                                projectName: meta.name,
+                                type: meta.type,
+                                labels: meta.labels || [],
+                                trainingStatus: meta.trained ? 'ready' : 'idle'
+                            };
+                        }
+                    } catch (_) { /* preload failed; model will be set by training page on visit */ }
                 }
                 let loadingSuccess = false;
                 this.props.vm.loadProject(result)

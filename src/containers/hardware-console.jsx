@@ -263,7 +263,7 @@ class HardwareConsole extends React.Component {
 
 HardwareConsole.propTypes = {
     baudrate: PropTypes.string.isRequired,
-    deviceId: PropTypes.string.isRequired,
+    deviceId: PropTypes.string,
     eol: PropTypes.string.isRequired,
     handleClickSerialportMenu: PropTypes.func.isRequired,
     handleRequestSerialportMenu: PropTypes.func.isRequired,
