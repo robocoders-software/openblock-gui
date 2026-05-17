@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <svg width="34px" height="34px" viewBox="1 1 33 33" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
     <!-- Generator: Sketch 55.2 (78181) - https://sketchapp.com -->
     <title>Bottom Left Handle</title>
@@ -8,9 +8,9 @@
     </defs>
     <g id="Bottom-Left-Handle" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
         <g id="Bottom-Left" transform="translate(17.000000, 17.000000) scale(1, -1) translate(-17.000000, -17.000000) ">
-            <use stroke="#9966FF33" stroke-width="8" xlink:href="#path-1"></use>
+            <use stroke="#004AAD33" stroke-width="8" xlink:href="#path-1"></use>
             <use fill="black" fill-opacity="1" filter="url(#filter-2)" xlink:href="#path-1"></use>
-            <use stroke="#774DCB" stroke-width="1" fill="#9966FF" fill-rule="evenodd" xlink:href="#path-1"></use>
+            <use stroke="#003A8C" stroke-width="1" fill="#004AAD" fill-rule="evenodd" xlink:href="#path-1"></use>
         </g>
     </g>
 </svg>

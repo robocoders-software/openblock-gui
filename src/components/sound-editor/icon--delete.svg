@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <svg width="20px" height="20px" viewBox="0 0 20 20" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
     <!-- Generator: Sketch 55.2 (78181) - https://sketchapp.com -->
     <title>Sound/General/Trim</title>
@@ -11,7 +11,7 @@
             <use xlink:href="#path-1"></use>
         </mask>
         <use id="Mask" fill="#575E75" xlink:href="#path-1"></use>
-        <g id="Blue/1_Blue" mask="url(#mask-2)" fill="#9966FF">
+        <g id="Blue/1_Blue" mask="url(#mask-2)" fill="#004AAD">
             <rect id="Primary-Blue" x="0" y="0" width="20" height="20"></rect>
         </g>
     </g>

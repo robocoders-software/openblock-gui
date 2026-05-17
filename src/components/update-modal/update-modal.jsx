@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {intlShape, FormattedMessage} from 'react-intl';
 import PropTypes from 'prop-types';
 import classNames from 'classnames';
@@ -57,8 +57,8 @@ const UpdateModalComponent = props => {
     const progressBar = value => (
         <ProgressBar
             completed={value}
-            bgColor="#9966FF"
-            baseBgColor="#DDD0F2"
+            bgColor="#004AAD"
+            baseBgColor="#C8DCFA"
             height="15px"
         />
     );

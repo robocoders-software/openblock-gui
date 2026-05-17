@@ -247,6 +247,7 @@ class MenuBar extends React.Component {
         this.props.vm.on('PERIPHERAL_DISCONNECTED', this.props.onDisconnect);
         this.props.vm.on('PROGRAM_MODE_UPDATE', this.handleProgramModeUpdate);
         window.addEventListener('resize', this.handleWindowsResize);
+        window.addEventListener('robocoders:open-robotics', this.handleOpenRoboticsEnv);
     }
     componentDidUpdate (prevProps) {
         if (prevProps.isToolboxUpdating !== this.props.isToolboxUpdating && !this.state.isOverflow) {
@@ -263,6 +264,7 @@ class MenuBar extends React.Component {
         this.props.vm.removeListener('PERIPHERAL_DISCONNECTED', this.props.onDisconnect);
         this.props.vm.removeListener('PROGRAM_MODE_UPDATE', this.handleProgramModeUpdate);
         window.removeEventListener('resize', this.handleWindowsResize);
+        window.removeEventListener('robocoders:open-robotics', this.handleOpenRoboticsEnv);
     }
     handleWindowsResize () {
         this.setState({isOverflow: false});
@@ -316,8 +318,9 @@ class MenuBar extends React.Component {
         this.props.onRequestCloseFile();
         window.dispatchEvent(new CustomEvent('robocoders:open-ml'));
     }
-    handleOpenRoboticsEnv () {
-        this.props.onRequestCloseFile();
+    handleOpenRoboticsEnv (e) {
+        // When called from the event listener e is a CustomEvent; skip menu-close in that case
+        if (!e || e.type !== 'robocoders:open-robotics') this.props.onRequestCloseFile();
 
         const showDialog = (opts, fallbackMsg) => {
             try {

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <svg width="20px" height="20px" viewBox="0 0 20 20" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
     <!-- Generator: Sketch 52.2 (67145) - http://www.bohemiancoding.com/sketch -->
     <title>Extensions/Connection/Wifi</title>
@@ -10,7 +10,7 @@
         <mask id="mask-2" fill="white">
             <use xlink:href="#path-1"></use>
         </mask>
-        <use id="wifi" fill="#9966FF" xlink:href="#path-1"></use>
+        <use id="wifi" fill="#004AAD" xlink:href="#path-1"></use>
         <g id="Color/1_Blue" mask="url(#mask-2)" fill="#575E75">
             <g id="Color/Gray">
                 <g id="Color">

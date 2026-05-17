@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+﻿<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg width="52px" height="52px" viewBox="0 0 52 52" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
     <!-- Generator: Sketch 43.2 (39069) - http://www.bohemiancoding.com/sketch -->
     <title>stop-playback</title>
@@ -18,8 +18,8 @@
                 <g id="Play-/-Record-/-Stop" transform="translate(623.000000, 307.000000)">
                     <g id="stop-playback">
                         <use fill="black" fill-opacity="1" filter="url(#filter-2)" xlink:href="#path-1"></use>
-                        <use fill="#9966FF" fill-rule="evenodd" xlink:href="#path-1"></use>
-                        <rect stroke="#7040C0" stroke-width="1" x="0.5" y="0.5" width="43" height="43" rx="4"></rect>
+                        <use fill="#004AAD" fill-rule="evenodd" xlink:href="#path-1"></use>
+                        <rect stroke="#003A8C" stroke-width="1" x="0.5" y="0.5" width="43" height="43" rx="4"></rect>
                     </g>
                 </g>
             </g>

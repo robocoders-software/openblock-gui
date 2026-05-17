@@ -1,4 +1,4 @@
-import ScratchBlocks from 'openblock-blocks';
+﻿import ScratchBlocks from 'openblock-blocks';
 
 import {eventBlock} from './libraries/devices/index.jsx';
 

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <svg width="100px" height="100px" viewBox="0 0 100 100" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
     <!-- Generator: Sketch 51.2 (57519) - http://www.bohemiancoding.com/sketch -->
     <title>Artboard</title>
@@ -11,7 +11,7 @@
             <mask id="mask-2" fill="white">
                 <use xlink:href="#path-1"></use>
             </mask>
-            <use id="sound" fill="#9966FF" fill-rule="evenodd" xlink:href="#path-1"></use>
+            <use id="sound" fill="#004AAD" fill-rule="evenodd" xlink:href="#path-1"></use>
             <g id="Color/Gray" mask="url(#mask-2)" fill="#575E75" fill-rule="evenodd">
                 <rect id="Color" x="0" y="0" width="100" height="100"></rect>
             </g>
