@@ -40,7 +40,12 @@ import layout, {STAGE_SIZE_MODES} from '../../lib/layout-constants';
 import {resolveStageSize} from '../../lib/screen-utils';
 
 import styles from './gui.css';
-import {MLProjectsPage, MLTrainingPage, CreateProjectModal, deleteProjectFS as deleteProjectIDB} from 'openblock-ml-studio';
+import {
+    MLProjectsPage, MLTrainingPage, CreateProjectModal,
+    deleteProjectFS,
+    setActiveModel,
+    loadImageProject, loadAudioProject, loadTextProject
+} from 'openblock-ml-studio';
 import addExtensionIcon from './icon--extensions.svg';
 import codeIcon from './icon--code.svg';
 import costumesIcon from './icon--costumes.svg';
@@ -192,8 +197,22 @@ const GUIComponent = props => {
     const deleteMLProject = useCallback(projectOrId => {
         const id = typeof projectOrId === 'string' ? projectOrId : projectOrId.id;
         setMlProjects(prev => { const next = prev.filter(p => p.id !== id); saveMLProjects(next); return next; });
-        deleteProjectIDB(id).catch(() => {});
-    }, []);
+        if (activeMLProject && activeMLProject.id === id) {
+            setActiveMLProject(null);
+            setMlView('projects');
+        }
+        deleteProjectFS(id).catch(() => {});
+        // Clear pending project in main process so will-download doesn't try to bundle deleted dir
+        try {
+            const ipc = window.require && window.require('electron').ipcRenderer;
+            if (ipc) ipc.send('ml-clear-pending-project', id);
+        } catch (_) { /* not in Electron */ }
+        if (window.__openblockMLModel && window.__openblockMLModel.projectId === id) {
+            setActiveModel(null);
+            // Notify app.jsx so it clears savedMLModelRef and won't restore this model on Back
+            window.dispatchEvent(new CustomEvent('robocoders:ml-model-deleted', {detail: {projectId: id}}));
+        }
+    }, [activeMLProject]);
 
     const importMLProject = useCallback(() => {
         const input = document.createElement('input');
@@ -273,13 +292,9 @@ const GUIComponent = props => {
             }
         } else if (vm.extensionManager.isExtensionLoaded('teachableMachine') &&
                    !window.__openblockMLModel) {
-            const hasMLBlocks = vm.runtime && vm.runtime.targets &&
-                vm.runtime.targets.some(t =>
-                    Object.values(t.blocks._blocks || {}).some(b =>
-                        b.opcode && b.opcode.startsWith('teachableMachine_')
-                    )
-                );
-            if (!hasMLBlocks) vm.extensionManager.unloadExtension('teachableMachine');
+            // No active model — unload regardless of workspace blocks.
+            // Keeping the extension alive with no model makes blocks appear functional but broken.
+            vm.extensionManager.unloadExtension('teachableMachine');
         }
     }, [mlTabVisible]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -379,26 +394,67 @@ const GUIComponent = props => {
         if (!vm || !vm.extensionManager) return;
 
         const handler = async () => {
+            // If app.jsx queued a new-project-for-export, trigger it now that the
+            // blank project is fully loaded — this avoids the race where PROJECT_LOADED
+            // fires after the export event and clears the model, compressing the blocks.
+            if (typeof window.__openblockMLPendingExport !== 'undefined') {
+                const pendingModel = window.__openblockMLPendingExport;
+                delete window.__openblockMLPendingExport;
+                if (pendingModel) window.__openblockMLModel = pendingModel;
+                window.dispatchEvent(new CustomEvent('robocoders:ml-export-to-blocks'));
+                return;
+            }
+
+            // User chose "Continue without ML blocks" for a .ob file whose ML project was deleted.
+            // Unload the extension so blocks turn unknown/grey — do NOT call loadXxxProject
+            // (which would re-extract ml/ from the .ob, silently restoring the deleted project).
+            if (window.__openblockMLSkipRestore) {
+                window.__openblockMLSkipRestore = false;
+                setActiveModel(null);
+                if (vm.extensionManager.isExtensionLoaded('teachableMachine')) {
+                    vm.extensionManager.unloadExtension('teachableMachine');
+                }
+                return;
+            }
+
             if (!vm.extensionManager.isExtensionLoaded('teachableMachine')) return;
             try {
                 const ipc = window.require && window.require('electron').ipcRenderer;
                 if (!ipc) return;
                 const meta = await ipc.invoke('ml-preload-active-model');
                 if (meta && meta.type && !meta.noMlData) {
-                    // Data found — populate the model ref so the extension shows the right block set
+                    // Set minimal metadata immediately so blocks render the correct type/labels
                     if (!window.__openblockMLModel) {
-                        window.__openblockMLModel = {
+                        setActiveModel({
                             projectId:      meta.id,
                             projectName:    meta.name,
                             type:           meta.type,
                             labels:         meta.labels || [],
                             trainingStatus: meta.trained ? 'ready' : 'idle'
-                        };
+                        });
                     }
                     vm.extensionManager.refreshBlocks().catch(() => {});
+                    // Asynchronously load the full classifier so predictions work immediately.
+                    // Skip if the model is already fully loaded (same session, same file re-opened).
+                    const alreadyFull = window.__openblockMLModel && (
+                        window.__openblockMLModel.classifier ||
+                        window.__openblockMLModel.classifyText ||
+                        window.__openblockMLModel.startListening
+                    );
+                    if (meta.trained && meta.id && !alreadyFull) {
+                        const t = meta.type;
+                        const afterLoad = () => vm.extensionManager.refreshBlocks().catch(() => {});
+                        if (t === 'images' || t === 'image') {
+                            loadImageProject(meta.id).then(afterLoad).catch(() => {});
+                        } else if (t === 'sounds') {
+                            loadAudioProject(meta.id).then(afterLoad).catch(() => {});
+                        } else if (t === 'text') {
+                            loadTextProject(meta.id).then(afterLoad).catch(() => {});
+                        }
+                    }
                 } else {
                     // No ML data in this file — unload so blocks turn "unknown" (model missing)
-                    window.__openblockMLModel = null;
+                    setActiveModel(null);
                     vm.extensionManager.unloadExtension('teachableMachine');
                 }
             } catch (_) { /* not in Electron */ }

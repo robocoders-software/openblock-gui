@@ -107,6 +107,41 @@ const SBFileUploaderHOC = function (WrappedComponent) {
                 }
             }
 
+            /* If the .ob file contains a bundled ML model that has since been deleted,
+               warn the user before opening so they can choose to abort. */
+            const filePath = this.fileToUpload && this.fileToUpload.path;
+            if (filePath && /\.ob$/i.test(filePath)) {
+                let ipcForCheck = null;
+                try { ipcForCheck = window.require('electron').ipcRenderer; } catch (_) { /* not in Electron */ }
+                if (ipcForCheck) {
+                    try {
+                        const mlCheck = await ipcForCheck.invoke('ml-check-ob-model', filePath);
+                        if (mlCheck && mlCheck.mlDeleted) {
+                            const {dialog: remoteDialog} = window.require('@electron/remote');
+                            const name = mlCheck.projectName || 'Unknown';
+                            const idx = remoteDialog.showMessageBoxSync({
+                                type: 'warning',
+                                title: 'ML Model Not Found',
+                                message: `The ML model "${name}" used in this project has been deleted.`,
+                                detail: 'You can continue without ML blocks, or cancel and keep the current project.',
+                                buttons: ['Continue without ML blocks', 'Cancel'],
+                                defaultId: 0,
+                                cancelId: 1
+                            });
+                            if (idx === 1) {
+                                // User cancelled — abort the file open entirely
+                                this.removeFileObjects();
+                                this.props.closeFileMenu();
+                                return;
+                            }
+                            // User chose "Continue without ML blocks" — set flag so onload and
+                            // PROJECT_LOADED handler skip ML restoration for this file open.
+                            window.__openblockMLSkipRestore = true;
+                        }
+                    } catch (_) { /* check failed — proceed normally, ML will load if present */ }
+                }
+            }
+
             /* Blank the workspace immediately so old blocks don't show during load */
             this.props.onLoadingStarted();
             this.props.requestProjectUpload(this.props.loadingState);
@@ -205,7 +240,8 @@ const SBFileUploaderHOC = function (WrappedComponent) {
                 // Pre-populate window.__openblockMLModel so the teachableMachine extension
                 // initialises with the correct block type (text/image/sounds) when the
                 // project loads, preventing image blocks appearing for text/audio models.
-                if (_mlIpc) {
+                // Skip if the user chose "Continue without ML blocks" for a deleted model.
+                if (_mlIpc && !window.__openblockMLSkipRestore) {
                     try {
                         const meta = await _mlIpc.invoke('ml-preload-active-model');
                         if (meta && meta.type && !meta.noMlData) {

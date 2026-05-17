@@ -185,6 +185,19 @@ class LoaderComponent extends React.Component {
                             ))}
                         </div>
                     </div>
+                    {this.state.showCancel && (
+                        <div className={styles.cancelArea}>
+                            <p className={styles.cancelHint}>
+                                {'Taking too long?'}
+                            </p>
+                            <button
+                                className={styles.cancelButton}
+                                onClick={this.handleCancel}
+                            >
+                                {'Return to Home'}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -193,7 +206,8 @@ class LoaderComponent extends React.Component {
 
 LoaderComponent.propTypes = {
     isFullScreen: PropTypes.bool,
-    messageId: PropTypes.string
+    messageId: PropTypes.string,
+    onCancel: PropTypes.func
 };
 LoaderComponent.defaultProps = {
     isFullScreen: false,
