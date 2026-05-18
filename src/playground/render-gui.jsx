@@ -8,6 +8,7 @@ import GUI from '../containers/gui.jsx';
 import HashParserHOC from '../lib/hash-parser-hoc.jsx';
 import log from '../lib/log.js';
 import MessageBoxType from '../lib/message-box.js';
+import showAppDialog from '../lib/app-dialog-service.js';
 
 const onClickLogo = () => {
     window.location = 'https://www.openblock.cc/';
@@ -82,10 +83,21 @@ const onClickAbout = [
 
 const handleShowMessageBox = (type, message) => {
     if (type === MessageBoxType.confirm) {
-        return confirm(message); // eslint-disable-line no-alert
-    } else if (type === MessageBoxType.alert) {
-        return alert(message); // eslint-disable-line no-alert
+        return showAppDialog({
+            type: 'question',
+            title: 'Confirm',
+            message,
+            buttons: ['OK', 'Cancel'],
+            defaultId: 0
+        }).then(idx => idx === 0);
     }
+    return showAppDialog({
+        type: 'info',
+        title: 'Notice',
+        message,
+        buttons: ['OK'],
+        defaultId: 0
+    });
 };
 
 /*

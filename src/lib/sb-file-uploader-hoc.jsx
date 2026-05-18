@@ -6,6 +6,7 @@ import {connect} from 'react-redux';
 import log from '../lib/log';
 import sharedMessages from './shared-messages';
 import MessageBoxType from '../lib/message-box.js';
+import showAppDialog from '../lib/app-dialog-service.js';
 
 import {
     LoadingStates,
@@ -117,16 +118,14 @@ const SBFileUploaderHOC = function (WrappedComponent) {
                     try {
                         const mlCheck = await ipcForCheck.invoke('ml-check-ob-model', filePath);
                         if (mlCheck && mlCheck.mlDeleted) {
-                            const {dialog: remoteDialog} = window.require('@electron/remote');
                             const name = mlCheck.projectName || 'Unknown';
-                            const idx = remoteDialog.showMessageBoxSync({
+                            const idx = await showAppDialog({
                                 type: 'warning',
                                 title: 'ML Model Not Found',
                                 message: `The ML model "${name}" used in this project has been deleted.`,
                                 detail: 'You can continue without ML blocks, or cancel and keep the current project.',
                                 buttons: ['Continue without ML blocks', 'Cancel'],
-                                defaultId: 0,
-                                cancelId: 1
+                                defaultId: 0
                             });
                             if (idx === 1) {
                                 // User cancelled — abort the file open entirely
@@ -137,6 +136,7 @@ const SBFileUploaderHOC = function (WrappedComponent) {
                             // User chose "Continue without ML blocks" — set flag so onload and
                             // PROJECT_LOADED handler skip ML restoration for this file open.
                             window.__openblockMLSkipRestore = true;
+                            try { ipcForCheck.send('ml-set-skip-restore', true); } catch (_) {}
                         }
                     } catch (_) { /* check failed — proceed normally, ML will load if present */ }
                 }
@@ -150,26 +150,17 @@ const SBFileUploaderHOC = function (WrappedComponent) {
 
         /* Returns a promise resolving to 'save', 'discard', or 'cancel'. */
         showSaveBeforeOpenDialog () {
-            return new Promise(resolve => {
-                try {
-                    const {dialog} = window.require('@electron/remote');
-                    // 0 = Save & Open, 1 = Don't Save, 2 = Cancel
-                    const idx = dialog.showMessageBoxSync({
-                        type: 'question',
-                        buttons: ['Save & Open', "Don't Save", 'Cancel'],
-                        defaultId: 0,
-                        cancelId: 2,
-                        title: 'Unsaved Changes',
-                        message: 'You have unsaved changes.',
-                        detail: 'Save your project before opening another?'
-                    });
-                    if (idx === 0) resolve('save');
-                    else if (idx === 1) resolve('discard');
-                    else resolve('cancel');
-                } catch (_) {
-                    /* Fallback for non-Electron environments */
-                    resolve(window.confirm('Save your project before opening another?') ? 'save' : 'discard');
-                }
+            return showAppDialog({
+                type: 'question',
+                title: 'Unsaved Changes',
+                message: 'You have unsaved changes.',
+                detail: 'Save your project before opening another?',
+                buttons: ['Save & Open', "Don't Save", 'Cancel'],
+                defaultId: 0
+            }).then(idx => {
+                if (idx === 0) return 'save';
+                if (idx === 1) return 'discard';
+                return 'cancel';
             });
         }
         // step 4 is below, in mapDispatchToProps

@@ -6,6 +6,7 @@ import PropTypes from 'prop-types';
 import bindAll from 'lodash.bindall';
 import bowser from 'bowser';
 import React from 'react';
+import showAppDialog from '../../lib/app-dialog-service.js';
 
 import VM from 'openblock-vm';
 
@@ -285,7 +286,7 @@ class MenuBar extends React.Component {
             this.setState({isOverflow: container.scrollWidth > container.clientWidth});
         }
     }
-    handleClickNew () {
+    async handleClickNew () {
         this.props.onRequestCloseFile();
         // Desktop: onGoHome handles dirty-check and navigation back to the home screen
         if (this.props.onGoHome) {
@@ -298,7 +299,7 @@ class MenuBar extends React.Component {
         // downloading or logging in first.
         // Note that if user is logged in and editing someone else's project,
         // they'll lose their work.
-        const readyToReplaceProject = this.props.confirmReadyToReplaceProject(
+        const readyToReplaceProject = await this.props.confirmReadyToReplaceProject(
             this.props.intl.formatMessage(sharedMessages.replaceProjectWarning)
         );
         if (readyToReplaceProject) {
@@ -318,46 +319,33 @@ class MenuBar extends React.Component {
         this.props.onRequestCloseFile();
         window.dispatchEvent(new CustomEvent('robocoders:open-ml'));
     }
-    handleOpenRoboticsEnv (e) {
+    async handleOpenRoboticsEnv (e) {
         // When called from the event listener e is a CustomEvent; skip menu-close in that case
         if (!e || e.type !== 'robocoders:open-robotics') this.props.onRequestCloseFile();
 
-        const showDialog = (opts, fallbackMsg) => {
-            try {
-                const {dialog} = window.require('@electron/remote');
-                return dialog.showMessageBoxSync(opts);
-            } catch (_) {
-                return window.confirm(fallbackMsg) ? 0 : 1;
-            }
-        };
-
         if (!this.props.deviceId) {
-            // No device selected — ask the user to pick one first
-            const idx = showDialog({
+            const idx = await showAppDialog({
                 type: 'info',
                 title: 'No Device Selected',
                 message: 'Please select a device first.',
                 detail: 'The Robotics Environment works best when a device is selected.\n' +
                         'Click "Select Device" to open the device library, or "Cancel" to go back.',
                 buttons: ['Select Device', 'Cancel'],
-                defaultId: 0,
-                cancelId: 1
-            }, 'No device selected. Open device library?');
+                defaultId: 0
+            });
             if (idx === 0) this.props.onOpenDeviceLibrary();
             return;
         }
 
-        // Device is selected — confirm before switching to Program Mode
-        const idx = showDialog({
+        const idx = await showAppDialog({
             type: 'info',
             title: 'Open Robotics Environment',
             message: 'Opening Robotics Environment will switch to Program Mode.',
             detail: 'Make sure your device is connected for full functionality.\n' +
                     'Click "Open" to proceed, or "Cancel" to go back.',
             buttons: ['Open', 'Cancel'],
-            defaultId: 0,
-            cancelId: 1
-        }, 'Open Robotics Environment and switch to Program Mode?');
+            defaultId: 0
+        });
 
         if (idx !== 0) return;
 
@@ -554,8 +542,8 @@ class MenuBar extends React.Component {
         this.props.onSetUpdate({phase: UPDATE_MODAL_STATE.checkingApplication});
         this.props.onClickCheckUpdate();
     }
-    handleClearCache () {
-        const readyClearCache = this.props.confirmClearCache(
+    async handleClearCache () {
+        const readyClearCache = await this.props.confirmClearCache(
             this.props.intl.formatMessage(sharedMessages.clearCacheWarning)
         );
         if (readyClearCache) {

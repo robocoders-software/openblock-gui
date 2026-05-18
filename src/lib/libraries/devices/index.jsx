@@ -108,6 +108,7 @@ const deviceData = [
     {
         name: 'Arduino Uno',
         deviceId: 'arduinoUno',
+        boardPackage: 'arduino',
         manufactor: 'arduino.cc',
         learnMore: 'https://docs.arduino.cc/hardware/uno-rev3',
         type: DeviceType.arduino,
@@ -144,6 +145,7 @@ const deviceData = [
     {
         name: 'Arduino Nano',
         deviceId: 'arduinoNano',
+        boardPackage: 'arduino',
         manufactor: 'arduino.cc',
         learnMore: 'https://docs.arduino.cc/hardware/nano',
         type: DeviceType.arduino,
@@ -180,6 +182,7 @@ const deviceData = [
     {
         name: 'Arduino Leonardo',
         deviceId: 'arduinoLeonardo',
+        boardPackage: 'arduino',
         manufactor: 'arduino.cc',
         learnMore: 'https://docs.arduino.cc/hardware/leonardo',
         type: DeviceType.arduino,
@@ -216,6 +219,7 @@ const deviceData = [
     {
         name: 'Arduino Mega 2560',
         deviceId: 'arduinoMega2560',
+        boardPackage: 'arduino',
         manufactor: 'arduino.cc',
         learnMore: 'https://docs.arduino.cc/hardware/mega-2560',
         type: DeviceType.arduino,
@@ -252,6 +256,7 @@ const deviceData = [
     {
         name: 'Arduino Uno R4 Minima',
         deviceId: 'arduinoUnoR4Minima',
+        boardPackage: 'arduino',
         manufactor: 'arduino',
         learnMore: 'https://docs.arduino.cc/hardware/uno-r4-minima',
         type: DeviceType.arduino,
@@ -288,6 +293,7 @@ const deviceData = [
     {
         name: 'Arduino Uno R4 WiFi',
         deviceId: 'arduinoUnoR4Wifi',
+        boardPackage: 'arduino',
         manufactor: 'arduino',
         learnMore: 'https://docs.arduino.cc/hardware/uno-r4-wifi',
         type: DeviceType.arduino,
@@ -324,6 +330,7 @@ const deviceData = [
     {
         name: 'ESP32',
         deviceId: 'arduinoEsp32',
+        boardPackage: 'esp32',
         manufactor: 'espressif',
         learnMore: 'https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32/index.html',
         type: DeviceType.arduino,
@@ -360,6 +367,7 @@ const deviceData = [
     {
         name: 'ESP32-S3',
         deviceId: 'arduinoEsp32S3',
+        boardPackage: 'esp32',
         manufactor: 'espressif',
         learnMore: 'https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/index.html',
         type: DeviceType.arduino,
@@ -396,6 +404,7 @@ const deviceData = [
     {
         name: 'NodeMCU',
         deviceId: 'arduinoEsp8266NodeMCU',
+        boardPackage: 'esp8266',
         manufactor: 'espressif',
         learnMore: 'https://www.nodemcu.com',
         type: DeviceType.arduino,
@@ -433,6 +442,7 @@ const deviceData = [
     {
         name: 'MaixDock',
         deviceId: 'arduinoK210MaixDock',
+        boardPackage: 'Maixduino',
         manufactor: 'sipeed',
         learnMore: 'https://wiki.sipeed.com/hardware/en/maix/maixpy_develop_kit_board/Maix_dock.html',
         type: DeviceType.arduino,
@@ -469,6 +479,7 @@ const deviceData = [
     {
         name: 'Maixduino',
         deviceId: 'arduinoK210Maixduino',
+        boardPackage: 'Maixduino',
         manufactor: 'sipeed',
         learnMore: 'https://wiki.sipeed.com/hardware/en/maix/maixpy_develop_kit_board/maix_duino.html',
         type: DeviceType.arduino,
@@ -505,6 +516,7 @@ const deviceData = [
     {
         name: 'Raspberry Pi Pico',
         deviceId: 'arduinoRaspberryPiPico',
+        boardPackage: 'rp2040',
         manufactor: 'Raspberry Pi Foundation',
         learnMore: 'https://www.raspberrypi.com/documentation/microcontrollers/pico-series.html#pico-1-technical-specification',
         type: DeviceType.arduino,
@@ -541,6 +553,7 @@ const deviceData = [
     {
         name: 'Raspberry Pi Pico W',
         deviceId: 'arduinoRaspberryPiPicoW',
+        boardPackage: 'rp2040',
         manufactor: 'Raspberry Pi Foundation',
         learnMore: 'https://www.raspberrypi.com/documentation/microcontrollers/pico-series.html#picow-technical-specification',
         type: DeviceType.arduino,
@@ -577,6 +590,7 @@ const deviceData = [
     {
         name: 'Raspberry Pi Pico 2',
         deviceId: 'arduinoRaspberryPiPico2',
+        boardPackage: 'rp2040',
         manufactor: 'Raspberry Pi Foundation',
         learnMore: 'https://www.raspberrypi.com/documentation/microcontrollers/pico-series.html#pico-2-technical-specification',
         type: DeviceType.arduino,
@@ -613,6 +627,7 @@ const deviceData = [
     {
         name: 'Raspberry Pi Pico 2 W',
         deviceId: 'arduinoRaspberryPiPico2W',
+        boardPackage: 'rp2040',
         manufactor: 'Raspberry Pi Foundation',
         learnMore: 'https://www.raspberrypi.com/documentation/microcontrollers/pico-series.html#pico2w-technical-specification',
         type: DeviceType.arduino,

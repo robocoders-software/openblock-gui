@@ -152,6 +152,7 @@ class LibraryItem extends React.PureComponent {
                 learnMore={this.props.learnMore}
                 manufactor={this.props.manufactor}
                 name={this.props.name}
+                notInstalled={this.props.notInstalled}
                 showPlayButton={this.props.showPlayButton}
                 onBlur={this.handleBlur}
                 onClick={this.handleClick}
@@ -206,6 +207,7 @@ LibraryItem.propTypes = {
         PropTypes.string,
         PropTypes.node
     ]),
+    notInstalled: PropTypes.bool,
     onMouseEnter: PropTypes.func.isRequired,
     onMouseLeave: PropTypes.func.isRequired,
     onSelect: PropTypes.func.isRequired,

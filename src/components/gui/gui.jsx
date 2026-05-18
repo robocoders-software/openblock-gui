@@ -650,13 +650,21 @@ const GUIComponent = props => {
                     />
                 ) : null}
                 {loading ? (
-                    <Loader />
+                    <Loader
+                        onCancel={onGoHome || (() => window.location.reload())}
+                    />
                 ) : null}
                 {isCreating ? (
-                    <Loader messageId="gui.loader.creating" />
+                    <Loader
+                        messageId="gui.loader.creating"
+                        onCancel={onGoHome || (() => window.location.reload())}
+                    />
                 ) : null}
                 {mlBlocksLoading ? (
-                    <Loader messageId="gui.loader.message4" />
+                    <Loader
+                        messageId="gui.loader.message4"
+                        onCancel={() => setMlBlocksLoading(false)}
+                    />
                 ) : null}
                 {isRendererSupported ? null : (
                     <WebGlModal isRtl={isRtl} />

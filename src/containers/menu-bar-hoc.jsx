@@ -16,17 +16,14 @@ const MenuBarHOC = function (WrappedComponent) {
                 'shouldSaveBeforeTransition'
             ]);
         }
-        confirmReadyToReplaceProject (message) {
-            let readyToReplaceProject = true;
+        async confirmReadyToReplaceProject (message) {
             if (this.props.projectChanged && !this.props.canCreateNew) {
-                readyToReplaceProject = this.props.onShowMessageBox(MessageBoxType.confirm, message);
+                return this.props.onShowMessageBox(MessageBoxType.confirm, message);
             }
-            return readyToReplaceProject;
+            return true;
         }
-        confirmClearCache (message) {
-            let readyClearCache = true;
-            readyClearCache = this.props.onShowMessageBox(MessageBoxType.confirm, message);
-            return readyClearCache;
+        async confirmClearCache (message) {
+            return this.props.onShowMessageBox(MessageBoxType.confirm, message);
         }
         shouldSaveBeforeTransition () {
             return (this.props.canSave && this.props.projectChanged);

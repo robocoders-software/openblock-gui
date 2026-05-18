@@ -116,21 +116,29 @@ const mainMessages = {
     )
 };
 
+const TIMEOUT_MS = 15000;
+
 class LoaderComponent extends React.Component {
     constructor (props) {
         super(props);
         this.state = {
-            messageNumber: this.chooseRandomMessage()
+            messageNumber: this.chooseRandomMessage(),
+            showBack: false
         };
+        this.handleBack = this.handleBack.bind(this);
     }
     componentDidMount () {
-        // Start an interval to choose a new message every 5 seconds
         this.intervalId = setInterval(() => {
             this.setState({messageNumber: this.chooseRandomMessage()});
         }, 5000);
+        /* After 15 s, reveal the Back button so the user is never stuck */
+        this.timeoutId = setTimeout(() => {
+            this.setState({showBack: true});
+        }, TIMEOUT_MS);
     }
     componentWillUnmount () {
         clearInterval(this.intervalId);
+        clearTimeout(this.timeoutId);
     }
     chooseRandomMessage () {
         let messageNumber;
@@ -144,6 +152,14 @@ class LoaderComponent extends React.Component {
             }
         }
         return messageNumber;
+    }
+    handleBack () {
+        if (this.props.onCancel) {
+            this.props.onCancel();
+        } else {
+            /* Fallback: hard reload to escape stuck state */
+            window.location.reload();
+        }
     }
     render () {
         return (
@@ -185,19 +201,19 @@ class LoaderComponent extends React.Component {
                             ))}
                         </div>
                     </div>
-                    {this.state.showCancel && (
-                        <div className={styles.cancelArea}>
-                            <p className={styles.cancelHint}>
-                                {'Taking too long?'}
-                            </p>
-                            <button
-                                className={styles.cancelButton}
-                                onClick={this.handleCancel}
-                            >
-                                {'Return to Home'}
-                            </button>
-                        </div>
-                    )}
+                    <div className={classNames(styles.backArea, {
+                        [styles.backAreaVisible]: this.state.showBack
+                    })}>
+                        <p className={styles.backHint}>
+                            {'Taking longer than expected…'}
+                        </p>
+                        <button
+                            className={styles.backButton}
+                            onClick={this.handleBack}
+                        >
+                            {'← Go Back'}
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -211,7 +227,8 @@ LoaderComponent.propTypes = {
 };
 LoaderComponent.defaultProps = {
     isFullScreen: false,
-    messageId: 'gui.loader.headline'
+    messageId: 'gui.loader.headline',
+    onCancel: null
 };
 
 export default LoaderComponent;

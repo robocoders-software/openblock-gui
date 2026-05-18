@@ -38,8 +38,8 @@ class UpdateModal extends React.Component {
         this.props.onAbortUpdate();
     }
 
-    handleClickUpdate () {
-        const confirmUpdate = this.props.onShowMessageBox(MessageBoxType.confirm,
+    async handleClickUpdate () {
+        const confirmUpdate = await this.props.onShowMessageBox(MessageBoxType.confirm,
             this.props.intl.formatMessage(messages.updateWarning));
         if (confirmUpdate) {
             this.props.onSetUpdate({phase: 'downloading', speed: 0, transferred: 0});

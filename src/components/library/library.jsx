@@ -240,6 +240,7 @@ class LibraryComponent extends React.Component {
                             learnMore={dataItem.learnMore}
                             manufactor={dataItem.manufactor}
                             name={dataItem.name}
+                            notInstalled={dataItem.notInstalled}
                             showPlayButton={this.props.showPlayButton}
                             onMouseEnter={this.handleMouseEnter}
                             onMouseLeave={this.handleMouseLeave}

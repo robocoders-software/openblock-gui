@@ -46,8 +46,20 @@ class LibraryItemComponent extends React.PureComponent {
                             />
                         </div>
                     ) : null}
+                    {this.props.notInstalled ? (
+                        <div className={styles.notInstalledBadge}>
+                            <FormattedMessage
+                                defaultMessage="Install Required"
+                                description="Badge shown on device cards when board support is not installed"
+                                id="gui.extensionLibrary.installRequired"
+                            />
+                        </div>
+                    ) : null}
                     <img
-                        className={styles.featuredImage}
+                        className={classNames(
+                            styles.featuredImage,
+                            {[styles.notInstalledImage]: this.props.notInstalled}
+                        )}
                         src={this.props.iconURL}
                     />
                 </div>
@@ -390,6 +402,7 @@ LibraryItemComponent.propTypes = {
         PropTypes.string,
         PropTypes.node
     ]),
+    notInstalled: PropTypes.bool,
     onBlur: PropTypes.func.isRequired,
     onClick: PropTypes.func.isRequired,
     onClickLearnMore: PropTypes.func.isRequired,
