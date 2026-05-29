@@ -1045,6 +1045,14 @@ class MenuBar extends React.Component {
                                     >
                                         {installDriver}
                                     </MenuItem>
+                                    {this.props.onClickDevicePermissions && (
+                                        <MenuItem
+                                            isRtl={this.props.isRtl}
+                                            onClick={this.props.onClickDevicePermissions}
+                                        >
+                                            {'Device Permissions'}
+                                        </MenuItem>
+                                    )}
                                 </MenuSection>
                                 <MenuSection>
                                     {typeof this.props.onClickAbout === 'object' ? aboutButton : null}
@@ -1121,6 +1129,7 @@ MenuBar.propTypes = {
     onClickCheckUpdate: PropTypes.func,
     onClickClearCache: PropTypes.func,
     onClickInstallDriver: PropTypes.func,
+    onClickDevicePermissions: PropTypes.func,
     onLogOut: PropTypes.func,
     onNoPeripheralIsConnected: PropTypes.func.isRequired,
     onOpenRegistration: PropTypes.func,

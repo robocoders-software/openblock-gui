@@ -614,6 +614,17 @@ class Blocks extends React.Component {
     handleBlocksInfoUpdate (extensionInfo) {
         // @todo Later we should replace this to avoid all the warnings from redefining blocks.
         this.handleScratchExtensionAdded(extensionInfo);
+        // handleScratchExtensionAdded updates the block factories synchronously but defers
+        // the toolbox XML update via setTimeout(0). We wait slightly longer so both the
+        // factory update AND the toolbox DOM update are done, then force the flyout to
+        // re-render — otherwise label blocks show stale text because their XML never
+        // changes (it's always <block type="teachableMachine_returnLabel_N">) and Blockly
+        // skips re-rendering flyout blocks whose XML hasn't changed.
+        setTimeout(() => {
+            if (this.workspace && this.workspace.refreshToolboxSelection_) {
+                this.workspace.refreshToolboxSelection_();
+            }
+        }, 50);
     }
     handleCategorySelected (categoryId) {
         const extension = extensionData.find(ext => ext.extensionId === categoryId);

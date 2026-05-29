@@ -78,7 +78,7 @@ const SBFileUploaderHOC = function (WrappedComponent) {
             this.fileReader.onload = this.onload;
             // create <input> element and add it to DOM
             this.inputElement = document.createElement('input');
-            this.inputElement.accept = '.ob,.sb,.sb2,.sb3';
+            this.inputElement.accept = '.rc,.sb,.sb2,.sb3';
             this.inputElement.style = 'display: none;';
             this.inputElement.type = 'file';
             this.inputElement.onchange = this.handleChange; // connects to step 3
@@ -111,7 +111,7 @@ const SBFileUploaderHOC = function (WrappedComponent) {
             /* If the .ob file contains a bundled ML model that has since been deleted,
                warn the user before opening so they can choose to abort. */
             const filePath = this.fileToUpload && this.fileToUpload.path;
-            if (filePath && /\.ob$/i.test(filePath)) {
+            if (filePath && /\.rc$/i.test(filePath)) {
                 let ipcForCheck = null;
                 try { ipcForCheck = window.require('electron').ipcRenderer; } catch (_) { /* not in Electron */ }
                 if (ipcForCheck) {
@@ -187,7 +187,7 @@ const SBFileUploaderHOC = function (WrappedComponent) {
         getProjectTitleFromFilename (fileInputFilename) {
             if (!fileInputFilename) return '';
             // parse title from all supported extensions: .ob, .sb, .sb2, .sb3
-            const matches = fileInputFilename.match(/^(.*)\.(ob|sb[23]?)$/i);
+            const matches = fileInputFilename.match(/^(.*)\.(rc|ob|sb[23]?)$/i);
             if (!matches) return '';
             return matches[1].substring(0, 100); // truncate project title to max 100 chars
         }
@@ -201,7 +201,7 @@ const SBFileUploaderHOC = function (WrappedComponent) {
                 /* Inform main process of the opened file path so ML data can be extracted */
                 try {
                     const filePath = this.fileToUpload && this.fileToUpload.path;
-                    if (filePath && /\.(ob|sb3?)$/i.test(filePath)) {
+                    if (filePath && /\.(rc|ob|sb3?)$/i.test(filePath)) {
                         const {ipcRenderer: ipc} = window.require('electron');
                         _mlIpc = ipc;
                         ipc.send('ml-update-current-file', filePath);
@@ -222,7 +222,7 @@ const SBFileUploaderHOC = function (WrappedComponent) {
                 if (!isZip && !isJson) {
                     log.warn('[sb-file-uploader] Rejected file with unrecognized format:', filename);
                     this.props.onShowMessageBox(MessageBoxType.alert,
-                        `This file doesn't appear to be a valid project file (.ob, .sb3).\n\nPlease choose a valid project file.`
+                        `This file doesn't appear to be a valid project file (.rc, .sb3).\n\nPlease choose a valid project file.`
                     );
                     this.props.onLoadingFinished(this.props.loadingState, false);
                     this.removeFileObjects();

@@ -93,7 +93,12 @@ class Stage extends React.Component {
             this.stopColorPickingLoop();
         }
         this.updateRect();
-        this.renderer.resize(this.rect.width, this.rect.height);
+        // Guard: getBoundingClientRect returns 0 when the stage is hidden or mid-transition.
+        // Calling renderer.resize(0, h) causes TextBubbleSkin to call getImageData with
+        // width=0, which throws a DOMException and crashes the entire error boundary.
+        if (this.rect.width > 0 && this.rect.height > 0) {
+            this.renderer.resize(this.rect.width, this.rect.height);
+        }
     }
     componentWillUnmount () {
         this.detachMouseEvents(this.canvas);

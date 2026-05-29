@@ -57,7 +57,7 @@ const getProjectFilename = (curTitle, defaultTitle, extension) => {
     if (!filenameTitle || filenameTitle.length === 0) {
         filenameTitle = defaultTitle;
     }
-    const ext = extension || 'ob';
+    const ext = extension || 'rc';
     return `${filenameTitle.substring(0, 100)}.${ext}`;
 };
 
@@ -71,7 +71,7 @@ SB3Downloader.propTypes = {
 };
 SB3Downloader.defaultProps = {
     className: '',
-    extension: 'ob'
+    extension: 'rc'
 };
 
 const mapStateToProps = (state, ownProps) => ({

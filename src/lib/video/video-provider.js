@@ -225,6 +225,15 @@ class VideoProvider {
                 // needed.
                 this._video.play(); // Needed for Safari/Firefox, Chrome auto-plays.
                 this._track = stream.getTracks()[0];
+                this._track.addEventListener('ended', () => {
+                    // Camera was physically disconnected mid-session
+                    if (this.enabled) {
+                        this._singleSetup = null;
+                        this._video = null;
+                        this._track = null;
+                        this.onError(new Error('Camera disconnected'));
+                    }
+                });
                 return this;
             })
             .catch(error => {

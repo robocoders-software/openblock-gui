@@ -168,7 +168,7 @@ const UpdateModalComponent = props => {
                         </div>
                         <div className={styles.updateInfo}>
                             <FormattedMessage
-                                defaultMessage="Openblock is already the latest version."
+                                defaultMessage="RoboCoders Studio is already the latest version."
                                 description="Prompt for already latest"
                                 id="gui.updateModel.alreadyLatestTips"
                             />

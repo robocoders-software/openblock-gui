@@ -123,6 +123,8 @@ const GUIComponent = props => {
         onClickUpdate,
         onClickClearCache,
         onClickInstallDriver,
+        // eslint-disable-next-line no-unused-vars
+        onClickDevicePermissions,
         onExtensionButtonClick,
         onProjectTelemetryEvent,
         onRequestCloseBackdropLibrary,
@@ -745,6 +747,7 @@ const GUIComponent = props => {
                     onClickCheckUpdate={onClickCheckUpdate}
                     onClickClearCache={onClickClearCache}
                     onClickInstallDriver={onClickInstallDriver}
+                    onClickDevicePermissions={onClickDevicePermissions}
                     onDirectSave={onDirectSave}
                     onGoHome={onGoHome}
                     onNewBlocksProject={props.onNewBlocksProject}
@@ -987,6 +990,7 @@ GUIComponent.propTypes = {
     onClickUpdate: PropTypes.func,
     onClickClearCache: PropTypes.func,
     onClickInstallDriver: PropTypes.func,
+    onClickDevicePermissions: PropTypes.func,
     onCloseAccountNav: PropTypes.func,
     onExtensionButtonClick: PropTypes.func,
     onLogOut: PropTypes.func,
