@@ -104,19 +104,49 @@
 
 .progressFill {
     height: 100%;
-    width: 45%;
     background: #004AAD;
     border-radius: 4px;
-    animation: progress-slide 1.4s ease-in-out infinite;
-}
-
-@keyframes progress-slide {
-    0%   { transform: translateX(-100%); }
-    100% { transform: translateX(320%); }
+    transition: width 0.4s ease;
+    min-width: 4px;
 }
 
 .progressLabel {
     font-size: 13px;
     color: #666;
-    margin: 0;
+    margin: 0 0 14px;
 }
+
+.installActions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 4px;
+}
+
+.backgroundBtn {
+    background: transparent;
+    border: 1.5px solid #bbb;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+.backgroundBtn:hover { background: #f5f5f5; border-color: #999; }
+
+.cancelInstallBtn {
+    background: transparent;
+    border: 1.5px solid #e53935;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e53935;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+}
+.cancelInstallBtn:hover { background: #fff5f5; }

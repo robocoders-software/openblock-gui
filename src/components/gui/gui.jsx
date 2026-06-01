@@ -158,7 +158,10 @@ const GUIComponent = props => {
         onClickNew,
         // eslint-disable-next-line no-unused-vars
         onNewBlocksProject,
+        // eslint-disable-next-line no-unused-vars
+        onNewRoboticsProject,
         onGoHome,
+        onCancelLoader,
         ...componentProps
     } = omit(props, 'dispatch');
     /* ── ML project helpers (defined before hooks) ── */
@@ -653,13 +656,13 @@ const GUIComponent = props => {
                 ) : null}
                 {loading ? (
                     <Loader
-                        onCancel={onGoHome || (() => window.location.reload())}
+                        onCancel={onCancelLoader || onGoHome || (() => window.location.reload())}
                     />
                 ) : null}
                 {isCreating ? (
                     <Loader
                         messageId="gui.loader.creating"
-                        onCancel={onGoHome || (() => window.location.reload())}
+                        onCancel={onCancelLoader || onGoHome || (() => window.location.reload())}
                     />
                 ) : null}
                 {mlBlocksLoading ? (
@@ -751,6 +754,7 @@ const GUIComponent = props => {
                     onDirectSave={onDirectSave}
                     onGoHome={onGoHome}
                     onNewBlocksProject={props.onNewBlocksProject}
+                    onNewRoboticsProject={props.onNewRoboticsProject}
                     projectDirty={props.projectDirty}
                     lastSavedAt={props.lastSavedAt}
                     onProjectDirtyChanged={props.onProjectDirtyChanged}

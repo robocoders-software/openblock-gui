@@ -253,40 +253,22 @@ class LibraryItemComponent extends React.PureComponent {
                         </div>
                     </div>
                 ) : null}
-                {this.props.learnMore || this.props.helpLink ? (
+                {this.props.learnMore ? (
                     <div className={styles.featuredExtensionMetadataThirdRow}>
-                        {this.props.learnMore ? (
-                            <div className={styles.featuredExtensionLearnMore}>
-                                <a
-                                    href={this.props.learnMore}
-                                    rel="noopener noreferrer"
-                                    target="_blank"
-                                    onClick={this.props.onClickLearnMore}
-                                >
-                                    <FormattedMessage
-                                        defaultMessage="Learn more"
-                                        description="Link text for device manufactor"
-                                        id="gui.extensionLibrary.deviceLearnMore"
-                                    />
-                                </a>
-                            </div>
-                        ) : null}
-                        {this.props.helpLink ? (
-                            <div className={styles.featuredExtensionHelpLink}>
-                                <a
-                                    href={this.props.helpLink}
-                                    rel="noopener noreferrer"
-                                    target="_blank"
-                                    onClick={this.props.onClickLearnMore}
-                                >
-                                    <FormattedMessage
-                                        defaultMessage="Help"
-                                        description="link text for extension help"
-                                        id="gui.extensionLibrary.extensionHelp"
-                                    />
-                                </a>
-                            </div>
-                        ) : null}
+                        <div className={styles.featuredExtensionLearnMore}>
+                            <a
+                                href={this.props.learnMore}
+                                rel="noopener noreferrer"
+                                target="_blank"
+                                onClick={this.props.onClickLearnMore}
+                            >
+                                <FormattedMessage
+                                    defaultMessage="Learn more"
+                                    description="Link text for device manufactor"
+                                    id="gui.extensionLibrary.deviceLearnMore"
+                                />
+                            </a>
+                        </div>
                     </div>
                 ) : null}
                 {this.props.isUnloadble ? (

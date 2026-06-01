@@ -2,7 +2,18 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import styles from './board-install-modal.css';
 
-const BoardInstallModal = ({deviceName, packageName, packageSizeMB, installing, error, onConfirm, onCancel}) => (
+const BoardInstallModal = ({
+    deviceName,
+    packageName,
+    packageSizeMB,
+    installing,
+    progress,
+    error,
+    onConfirm,
+    onCancel,
+    onCancelInstall,
+    onBackground
+}) => (
     <div className={styles.overlay}>
         <div className={styles.modal}>
             <div className={styles.icon}>📦</div>
@@ -24,9 +35,34 @@ const BoardInstallModal = ({deviceName, packageName, packageSizeMB, installing, 
             {installing ? (
                 <div className={styles.progressWrap}>
                     <div className={styles.progressBar}>
-                        <div className={styles.progressFill} />
+                        <div
+                            className={styles.progressFill}
+                            style={{width: `${progress || 0}%`}}
+                        />
                     </div>
-                    <p className={styles.progressLabel}>Installing board support… please wait</p>
+                    <p className={styles.progressLabel}>
+                        {progress > 0
+                            ? `Installing… ${progress}%`
+                            : 'Installing board support… please wait'}
+                    </p>
+                    <div className={styles.installActions}>
+                        {onBackground && (
+                            <button
+                                className={styles.backgroundBtn}
+                                onClick={onBackground}
+                            >
+                                Run in Background
+                            </button>
+                        )}
+                        {onCancelInstall && (
+                            <button
+                                className={styles.cancelInstallBtn}
+                                onClick={onCancelInstall}
+                            >
+                                Cancel Installation
+                            </button>
+                        )}
+                    </div>
                 </div>
             ) : (
                 <div className={styles.actions}>
@@ -40,7 +76,7 @@ const BoardInstallModal = ({deviceName, packageName, packageSizeMB, installing, 
                         className={styles.installBtn}
                         onClick={onConfirm}
                     >
-                        Install Now
+                        {error ? 'Retry' : 'Install Now'}
                     </button>
                 </div>
             )}
@@ -49,19 +85,25 @@ const BoardInstallModal = ({deviceName, packageName, packageSizeMB, installing, 
 );
 
 BoardInstallModal.propTypes = {
-    deviceName:    PropTypes.string.isRequired,
-    packageName:   PropTypes.string.isRequired,
-    packageSizeMB: PropTypes.number,
-    installing:    PropTypes.bool,
-    error:         PropTypes.string,
-    onConfirm:     PropTypes.func.isRequired,
-    onCancel:      PropTypes.func.isRequired
+    deviceName:      PropTypes.string.isRequired,
+    packageName:     PropTypes.string.isRequired,
+    packageSizeMB:   PropTypes.number,
+    installing:      PropTypes.bool,
+    progress:        PropTypes.number,
+    error:           PropTypes.string,
+    onConfirm:       PropTypes.func.isRequired,
+    onCancel:        PropTypes.func.isRequired,
+    onCancelInstall: PropTypes.func,
+    onBackground:    PropTypes.func
 };
 
 BoardInstallModal.defaultProps = {
-    installing: false,
-    error: null,
-    packageSizeMB: null
+    installing:      false,
+    progress:        0,
+    error:           null,
+    packageSizeMB:   null,
+    onCancelInstall: null,
+    onBackground:    null
 };
 
 export default BoardInstallModal;

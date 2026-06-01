@@ -71,17 +71,19 @@ const BrowserModal = ({intl, ...props}) => {
                     <div className={styles.faqLinkText}>
                         <FormattedMessage
                             defaultMessage="To learn more, go to the {previewFaqLink}."
-                            description="Invitation to try 3.0 preview"
+                            description="RoboCoders Studio website link"
                             id="gui.unsupportedBrowser.previewfaq"
                             values={{
                                 previewFaqLink: (
                                     <a
                                         className={styles.faqLink}
-                                        href="//openblock.cc/faq"
+                                        href="https://yugminds.com/"
+                                        rel="noopener noreferrer"
+                                        target="_blank"
                                     >
                                         <FormattedMessage
-                                            defaultMessage="FAQ"
-                                            description="link to OpenBlock FAQ page"
+                                            defaultMessage="RoboCoders Studio website"
+                                            description="link to RoboCoders Studio website"
                                             id="gui.unsupportedBrowser.previewfaqlinktext"
                                         />
                                     </a>

@@ -71,7 +71,7 @@ const StageHeaderComponent = function (props) {
         const stageButton = showBranding ? (
             <div className={styles.embedOpenblockLogo}>
                 <a
-                    href="https://openblock.cc"
+                    href="https://yugminds.com"
                     rel="noopener noreferrer"
                     target="_blank"
                 >

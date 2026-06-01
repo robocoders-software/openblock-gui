@@ -102,9 +102,15 @@ class Blocks extends React.Component {
             prompt: null
         };
         this._pendingToolboxReset = false;
+        this._lastEditingTargetId = null;
+        this._renderReadyRaf = null;
         this._handleNewProject = () => { this._pendingToolboxReset = true; };
         this.onTargetsUpdate = debounce(this.onTargetsUpdate, 100);
         this.toolboxUpdateQueue = [];
+        // Cache the serialized JSON for each registered block type so we can
+        // skip re-registering blocks whose definition hasn't changed (avoids
+        // "overwrites prior definition" warnings on BLOCKSINFO_UPDATE).
+        this._blockJsonRegistry = {};
     }
     componentDidMount () {
         this.ScratchBlocks.FieldColourSlider.activateEyedropper_ = this.onActivateColorPicker;
@@ -165,7 +171,58 @@ class Blocks extends React.Component {
         // If locale changes while not visible it will get handled in didUpdate
         if (this.props.isVisible) {
             this.setLocale();
+            // When the component mounts with isVisible=true (e.g. first entry from
+            // the home screen), componentDidUpdate's isVisible:false→true path never
+            // fires, so the resize + toolbox refresh it contains are skipped. Blockly's
+            // inject() also runs before the browser has laid out the container, leaving
+            // the workspace and flyout SVG sized to 0×0 — so the block palette renders
+            // empty. A fixed timeout is unreliable: on a slow machine the container can
+            // still be 0×0 when it fires, and then nothing re-measures afterwards.
+            // Instead, wait deterministically until the container actually has layout.
+            this._ensureWorkspaceRendered();
         }
+    }
+    /**
+     * Robustly finalize the Blockly workspace/flyout layout after first mount.
+     * Polls on animation frames until the container has non-zero dimensions
+     * (i.e. the browser has laid it out), then forces a resize + toolbox refresh
+     * so the palette and flyout render correctly regardless of machine speed.
+     * Falls back after a capped number of frames so it can never loop forever.
+     */
+    _ensureWorkspaceRendered (attempt = 0) {
+        const MAX_ATTEMPTS = 600; // ~10s at 60fps — generous headroom for slow machines
+        // Bail if the component unmounted or the workspace was disposed mid-loop.
+        if (!this.workspace || !this.blocks) {
+            this._renderReadyRaf = null;
+            return;
+        }
+        const rect = this.blocks.getBoundingClientRect();
+        const hasLayout = rect.width > 0 && rect.height > 0;
+        if (hasLayout) {
+            this._renderReadyRaf = null;
+            // Container is laid out — re-measure Blockly and repopulate the toolbox.
+            if (typeof this.ScratchBlocks.svgResize === 'function') {
+                this.ScratchBlocks.svgResize(this.workspace);
+            }
+            window.dispatchEvent(new Event('resize'));
+            this.requestToolboxUpdate();
+            // Guarantee the flyout isn't blank: if no category is selected yet,
+            // open Motion (always the first built-in category).
+            requestAnimationFrame(() => {
+                if (this.workspace && this.workspace.toolbox_ &&
+                    !this.workspace.toolbox_.getSelectedCategoryId()) {
+                    try {
+                        this.workspace.toolbox_.setSelectedCategoryById('motion');
+                    } catch (_) { /* category not present yet — next update handles it */ }
+                }
+            });
+            return;
+        }
+        if (attempt >= MAX_ATTEMPTS) {
+            this._renderReadyRaf = null;
+            return;
+        }
+        this._renderReadyRaf = requestAnimationFrame(() => this._ensureWorkspaceRendered(attempt + 1));
     }
     shouldComponentUpdate (nextProps, nextState) {
         return (
@@ -235,6 +292,10 @@ class Blocks extends React.Component {
         this.workspace.dispose();
         clearTimeout(this.toolboxUpdateTimeout);
         clearTimeout(this.getXMLAndUpdateToolboxTimeout);
+        if (this._renderReadyRaf) {
+            cancelAnimationFrame(this._renderReadyRaf);
+            this._renderReadyRaf = null;
+        }
     }
     requestToolboxUpdate () {
         clearTimeout(this.toolboxUpdateTimeout);
@@ -288,16 +349,40 @@ class Blocks extends React.Component {
         this.workspace.toolboxRefreshEnabled_ = true;
 
         if (this._pendingToolboxReset) {
-            // New project: scroll to the top of the first category (Motion)
             this._pendingToolboxReset = false;
-            this.workspace.toolbox_.setFlyoutScrollPos(0);
-        } else {
-            const currentCategoryPos = this.workspace.toolbox_.getCategoryPositionById(categoryId);
-            const currentCategoryLen = this.workspace.toolbox_.getCategoryLengthById(categoryId);
-            if (offset < currentCategoryLen) {
-                this.workspace.toolbox_.setFlyoutScrollPos(currentCategoryPos + offset);
-            } else {
-                this.workspace.toolbox_.setFlyoutScrollPos(currentCategoryPos);
+            // Select Motion (always the first category) so the flyout isn't blank on
+            // new project load. setFlyoutScrollPos(0) alone only scrolls the sidebar;
+            // it never opens a category, leaving the blocks area visually empty.
+            this.workspace.toolbox_.setSelectedCategoryById('motion');
+        } else if (categoryId) {
+            // workspace.updateToolbox() rebuilds the toolbox and may reset the selected
+            // category to null. Explicitly re-select the previously active category so
+            // the flyout re-renders with up-to-date block content (e.g. after switching
+            // from Stage to Sprite, or after an ML extension toolbox update).
+            // setSelectedCategoryById both restores the sidebar highlight AND re-renders
+            // the flyout — unlike refreshToolboxSelection_() which shows nothing when
+            // updateToolbox() cleared the selection.
+            this.workspace.toolbox_.setSelectedCategoryById(categoryId);
+
+            // Extension categories (ML models, etc.) include FieldImage icons and
+            // VALUE_INPUT shadow blocks whose dimensions aren't finalized until after
+            // the browser paints.  Re-select after two animation frames so Scratch
+            // Blocks can re-measure and fix any compressed blocks.
+            // Skipped for built-in categories to avoid unnecessary flyout rebuilds on
+            // every variable change.
+            const BUILTIN_CATEGORIES = new Set([
+                'motion', 'looks', 'sound', 'events', 'control',
+                'sensing', 'operators', 'data', 'myBlocks', 'images'
+            ]);
+            if (!BUILTIN_CATEGORIES.has(categoryId)) {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (this.workspace &&
+                            this.workspace.toolbox_.getSelectedCategoryId() === categoryId) {
+                            this.workspace.toolbox_.setSelectedCategoryById(categoryId);
+                        }
+                    });
+                });
             }
         }
 
@@ -378,6 +463,20 @@ class Blocks extends React.Component {
                 this.updateToolboxBlockValue(`${prefix}x`, Math.round(this.props.vm.editingTarget.x).toString());
                 this.updateToolboxBlockValue(`${prefix}y`, Math.round(this.props.vm.editingTarget.y).toString());
             });
+
+            // When the editing target changes (sprite added, sprite selected, sprite deleted),
+            // onWorkspaceUpdate fires before vm.editingTarget is updated — so getToolboxXML()
+            // still returns Stage XML, the toolbox sees no change, and the flyout stays stale.
+            // Detect the target switch here (after the target is fully set) and force a
+            // toolbox regeneration so Motion blocks correctly appear for the new sprite.
+            const newId = this.props.vm.editingTarget.id;
+            if (newId !== this._lastEditingTargetId) {
+                this._lastEditingTargetId = newId;
+                const toolboxXML = this.getToolboxXML();
+                if (toolboxXML) {
+                    this.props.updateToolboxState(toolboxXML);
+                }
+            }
         }
     }
     onWorkspaceMetricsChange () {
@@ -546,7 +645,18 @@ class Blocks extends React.Component {
                         // otherwise it's a non-block entry such as '---'
                     });
 
-                    this.ScratchBlocks.defineBlocksWithJsonArray(staticBlocksJson);
+                    // Only (re-)register a block if its JSON has changed since last time.
+                    // This prevents "overwrites prior definition" warnings when BLOCKSINFO_UPDATE
+                    // fires repeatedly with the same static block definitions.
+                    const changedJson = staticBlocksJson.filter(json => {
+                        const key = JSON.stringify(json);
+                        if (this._blockJsonRegistry[json.type] === key) return false;
+                        this._blockJsonRegistry[json.type] = key;
+                        return true;
+                    });
+                    if (changedJson.length > 0) {
+                        this.ScratchBlocks.defineBlocksWithJsonArray(changedJson);
+                    }
                     dynamicBlocksInfo.forEach(blockInfo => {
                         // This is creating the block factory / constructor -- NOT a specific instance of the block.
                         // The factory should only know static info about the block: the category info and the opcode.
@@ -612,19 +722,20 @@ class Blocks extends React.Component {
         }
     }
     handleBlocksInfoUpdate (extensionInfo) {
-        // @todo Later we should replace this to avoid all the warnings from redefining blocks.
         this.handleScratchExtensionAdded(extensionInfo);
-        // handleScratchExtensionAdded updates the block factories synchronously but defers
-        // the toolbox XML update via setTimeout(0). We wait slightly longer so both the
-        // factory update AND the toolbox DOM update are done, then force the flyout to
-        // re-render — otherwise label blocks show stale text because their XML never
-        // changes (it's always <block type="teachableMachine_returnLabel_N">) and Blockly
-        // skips re-rendering flyout blocks whose XML hasn't changed.
-        setTimeout(() => {
-            if (this.workspace && this.workspace.refreshToolboxSelection_) {
-                this.workspace.refreshToolboxSelection_();
-            }
-        }, 50);
+        // updateToolbox() re-renders the currently selected category, but if the ML
+        // category isn't selected at that moment the flyout dimensions are computed too
+        // early and blocks appear compressed.  A second deferred setSelectedCategoryById
+        // re-measures after layout is settled, regardless of which category is active.
+        if (extensionInfo && extensionInfo.id) {
+            const extId = extensionInfo.id;
+            setTimeout(() => {
+                if (this.workspace &&
+                    this.workspace.toolbox_.getSelectedCategoryId() === extId) {
+                    this.workspace.toolbox_.setSelectedCategoryById(extId);
+                }
+            }, 100);
+        }
     }
     handleCategorySelected (categoryId) {
         const extension = extensionData.find(ext => ext.extensionId === categoryId);
@@ -634,6 +745,19 @@ class Blocks extends React.Component {
 
         this.withToolboxUpdates(() => {
             this.workspace.toolbox_.setSelectedCategoryById(categoryId);
+        });
+
+        // Scratch Blocks measures shadow-input block widths before the browser
+        // paints, so reporter blocks with value inputs appear compressed on first
+        // selection.  Re-selecting after two animation frames (post-paint) forces
+        // a correct re-measure without the user noticing.
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                if (this.workspace &&
+                    this.workspace.toolbox_.getSelectedCategoryId() === categoryId) {
+                    this.workspace.toolbox_.setSelectedCategoryById(categoryId);
+                }
+            });
         });
     }
     handleDeviceSelected (categoryId) {

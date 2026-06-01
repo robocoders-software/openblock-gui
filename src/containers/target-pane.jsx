@@ -79,7 +79,17 @@ class TargetPane extends React.Component {
     }
     handleDeleteSprite (id) {
         const restoreSprite = this.props.vm.deleteSprite(id);
-        const restoreFun = () => restoreSprite().then(this.handleActivateBlocksTab);
+        const restoreFun = () => restoreSprite().then(() => {
+            this.handleActivateBlocksTab();
+            // Defer to let Redux/React finish processing the newly added target, then
+            // refresh the workspace. The resize event is needed because onWorkspaceUpdate
+            // only calls workspace.resize() when saved metrics exist for the target —
+            // a freshly restored sprite has none, so Blockly won't render without it.
+            setTimeout(() => {
+                this.props.vm.refreshWorkspace();
+                window.dispatchEvent(new Event('resize'));
+            }, 0);
+        });
 
         this.props.dispatchUpdateRestore({
             restoreFun: restoreFun,

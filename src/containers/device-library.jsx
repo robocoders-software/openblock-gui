@@ -59,15 +59,22 @@ class DeviceLibrary extends React.PureComponent {
             'handleItemSelect',
             'requestLoadDevice',
             'handleInstallConfirm',
-            'handleInstallCancel'
+            'handleInstallCancel',
+            'handleInstallBackground',
+            'handleCancelInstall',
+            'handleProgress'
         ]);
         this.state = {
-            installedPackages: {},   // pkgId → true
+            installedPackages: {},   // pkgId → true | false
             boardPacks: {},          // pkgId → manifest entry
-            installTarget: null,     // device pending install
+            installTarget: null,     // device whose install modal is open
             installing: false,
+            installProgress: 0,      // 0-100
             installError: null
         };
+        /* pkgId of the installation that is running but whose modal was dismissed */
+        this._backgroundPkg = null;
+        this._installPromise = null;
     }
 
     componentDidMount () {
@@ -78,7 +85,6 @@ class DeviceLibrary extends React.PureComponent {
                 this.props.onSetDeviceData(makeDeviceLibrary());
             });
 
-        /* Load installed board status */
         const ipc = getIpc();
         if (ipc) {
             ipc.invoke('board-manager:list').then(packs => {
@@ -89,7 +95,46 @@ class DeviceLibrary extends React.PureComponent {
                     boardPacks[p.pkgId] = p;
                 });
                 this.setState({installedPackages, boardPacks});
-            }).catch(() => { /* no board-packs manifest — treat all as installed */ });
+            }).catch(() => {});
+
+            /* Listen for progress events sent by the main process */
+            ipc.on('board-manager:progress', this.handleProgress);
+        }
+    }
+
+    componentWillUnmount () {
+        const ipc = getIpc();
+        if (ipc) ipc.removeListener('board-manager:progress', this.handleProgress);
+    }
+
+    handleProgress (event, {pkgId, percent, done, error}) {
+        if (done) {
+            this.setState(prev => ({
+                installedPackages: {...prev.installedPackages, [pkgId]: true},
+                installing: prev.installTarget && prev.installTarget.boardPackage === pkgId
+                    ? false : prev.installing,
+                installProgress: 100
+            }));
+            /* Auto-load if this package's device was chosen and modal is still open */
+            const {installTarget} = this.state;
+            if (installTarget && installTarget.boardPackage === pkgId) {
+                this.requestLoadDevice(installTarget);
+                this.setState({installTarget: null});
+                this.props.onRequestClose();
+            }
+            return;
+        }
+        if (error) {
+            this.setState(prev => ({
+                installing: prev.installTarget && prev.installTarget.boardPackage === pkgId
+                    ? false : prev.installing,
+                installError: error,
+                installProgress: 0
+            }));
+            return;
+        }
+        if (this.state.installTarget && this.state.installTarget.boardPackage === pkgId) {
+            this.setState({installProgress: percent || 0});
         }
     }
 
@@ -120,10 +165,9 @@ class DeviceLibrary extends React.PureComponent {
     }
 
     handleItemSelect (item) {
-        /* If this board's package is not installed, prompt install instead */
         const pkg = item.boardPackage;
         if (pkg && this.state.installedPackages[pkg] === false) {
-            this.setState({installTarget: item, installError: null});
+            this.setState({installTarget: item, installError: null, installProgress: 0});
             return;
         }
         this.requestLoadDevice(item);
@@ -134,8 +178,7 @@ class DeviceLibrary extends React.PureComponent {
         const {installTarget, boardPacks} = this.state;
         if (!installTarget) return;
         const pkg = installTarget.boardPackage;
-        const packInfo = boardPacks[pkg] || {};
-        this.setState({installing: true, installError: null});
+        this.setState({installing: true, installError: null, installProgress: 0});
 
         const ipc = getIpc();
         if (!ipc) {
@@ -143,30 +186,53 @@ class DeviceLibrary extends React.PureComponent {
             return;
         }
 
-        ipc.invoke('board-manager:install', pkg).then(() => {
-            this.setState(prev => ({
-                installing: false,
-                installedPackages: {...prev.installedPackages, [pkg]: true},
-                installTarget: null
-            }));
-            /* Now load the device */
-            this.requestLoadDevice(installTarget);
-            this.props.onRequestClose();
-        }).catch(err => {
-            this.setState({
-                installing: false,
-                installError: err.message || 'Installation failed.'
-            });
+        /* Start installation — main process sends progress events back */
+        ipc.invoke('board-manager:install', pkg).catch(err => {
+            /* Only show error if the modal is still open for this package */
+            if (this.state.installTarget && this.state.installTarget.boardPackage === pkg) {
+                this.setState({
+                    installing: false,
+                    installError: err.message || 'Installation failed.'
+                });
+            }
         });
-        void packInfo;
+
+        void boardPacks;
+    }
+
+    /* Dismiss the modal but keep the installation running */
+    handleInstallBackground () {
+        const {installTarget} = this.state;
+        if (installTarget) this._backgroundPkg = installTarget.boardPackage;
+        this.setState({installTarget: null, installing: false, installProgress: 0, installError: null});
+        /* Library stays open so the user can pick a different device */
+    }
+
+    /* Cancel the running installation */
+    handleCancelInstall () {
+        const {installTarget} = this.state;
+        const pkg = installTarget ? installTarget.boardPackage : this._backgroundPkg;
+        if (!pkg) return;
+
+        const ipc = getIpc();
+        if (ipc) ipc.invoke('board-manager:cancel', pkg).catch(() => {});
+
+        this.setState({
+            installing: false,
+            installTarget: null,
+            installProgress: 0,
+            installError: null
+        });
+        this._backgroundPkg = null;
     }
 
     handleInstallCancel () {
-        this.setState({installTarget: null, installing: false, installError: null});
+        this.setState({installTarget: null, installing: false, installProgress: 0, installError: null});
     }
 
     render () {
-        const {installedPackages, boardPacks, installTarget, installing, installError} = this.state;
+        const {installedPackages, boardPacks, installTarget, installing,
+            installProgress, installError} = this.state;
         const hasBoardPacks = Object.keys(boardPacks).length > 0;
 
         const deviceLibraryThumbnailData = this.props.deviceData.map(device => {
@@ -176,9 +242,7 @@ class DeviceLibrary extends React.PureComponent {
             return {
                 rawURL: device.iconURL || deviceIcon,
                 ...device,
-                /* Mark as not-installed so the card can render an Install badge */
                 boardPackageInstalled: !notInstalled,
-                /* Slightly dim not-installed cards but keep them visible + clickable */
                 notInstalled
             };
         });
@@ -186,6 +250,7 @@ class DeviceLibrary extends React.PureComponent {
         return (
             <React.Fragment>
                 <LibraryComponent
+                    autoClose={false}
                     data={deviceLibraryThumbnailData}
                     filterable
                     tags={tagListPrefix}
@@ -204,9 +269,12 @@ class DeviceLibrary extends React.PureComponent {
                             ? Math.round(boardPacks[installTarget.boardPackage].rawBytes / 1024 / 1024)
                             : null}
                         installing={installing}
+                        progress={installProgress}
                         error={installError}
                         onConfirm={this.handleInstallConfirm}
                         onCancel={this.handleInstallCancel}
+                        onCancelInstall={installing ? this.handleCancelInstall : null}
+                        onBackground={installing ? this.handleInstallBackground : null}
                     />
                 )}
             </React.Fragment>

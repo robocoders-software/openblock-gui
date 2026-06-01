@@ -149,7 +149,7 @@ class TelemetryModal extends React.PureComponent {
                         values={{
                             privacyPolicyLink: (<a
                                 className={styles.privacyPolicyLink}
-                                href="https://openblock.cc/privacy_policy/"
+                                href="https://yugminds.com/privacy"
                                 onClick={this.props.onShowPrivacyPolicy}
                                 target="_blank"
                                 rel="noopener noreferrer"

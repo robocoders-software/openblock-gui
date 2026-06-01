@@ -240,7 +240,8 @@ class MenuBar extends React.Component {
             'handleClearCache'
         ]);
         this.state = {
-            isOverflow: false
+            isOverflow: false,
+            pendingRoboticsEnv: false
         };
     }
     componentDidMount () {
@@ -258,6 +259,19 @@ class MenuBar extends React.Component {
         if (prevProps.projectChanged !== this.props.projectChanged &&
             typeof this.props.onProjectDirtyChanged === 'function') {
             this.props.onProjectDirtyChanged(!!this.props.projectChanged);
+        }
+        if (this.state.pendingRoboticsEnv) {
+            // Device was selected after coming from "Open Robotics Env" flow — switch to upload mode
+            if (this.props.deviceId && !prevProps.deviceId) {
+                this.setState({pendingRoboticsEnv: false});
+                if (this.props.isRealtimeMode) {
+                    this.props.vm.runtime.setRealtimeMode(false);
+                    this.props.onSetUploadMode();
+                }
+            // Device library closed without a selection — clear the pending flag
+            } else if (prevProps.deviceLibraryOpen && !this.props.deviceLibraryOpen && !this.props.deviceId) {
+                this.setState({pendingRoboticsEnv: false});
+            }
         }
     }
     componentWillUnmount () {
@@ -323,6 +337,12 @@ class MenuBar extends React.Component {
         // When called from the event listener e is a CustomEvent; skip menu-close in that case
         if (!e || e.type !== 'robocoders:open-robotics') this.props.onRequestCloseFile();
 
+        // Save check + new project (desktop HOC provides this)
+        if (this.props.onNewRoboticsProject) {
+            const proceed = await this.props.onNewRoboticsProject();
+            if (!proceed) return;
+        }
+
         if (!this.props.deviceId) {
             const idx = await showAppDialog({
                 type: 'info',
@@ -333,7 +353,10 @@ class MenuBar extends React.Component {
                 buttons: ['Select Device', 'Cancel'],
                 defaultId: 0
             });
-            if (idx === 0) this.props.onOpenDeviceLibrary();
+            if (idx === 0) {
+                this.setState({pendingRoboticsEnv: true});
+                this.props.onOpenDeviceLibrary();
+            }
             return;
         }
 
@@ -440,10 +463,10 @@ class MenuBar extends React.Component {
         }
     }
     handleClickOpenCommunity () {
-        window.open('https://community.openblock.cc');
+        window.open('https://yugminds.com/community');
     }
     handleClickOpenWiki () {
-        window.open('https://wiki.openblock.cc');
+        window.open('https://yugminds.com/docs');
     }
     restoreOptionMessage (deletedItem) {
         switch (deletedItem) {
@@ -822,6 +845,16 @@ class MenuBar extends React.Component {
                                     />
                                 </MenuItem>
                             </MenuSection>
+                            <MenuSection>
+                                <DeletionRestorer>{(restoreDeletion, {restorable, deletedItem}) => (
+                                    <MenuItem
+                                        className={classNames({[styles.disabled]: !restorable})}
+                                        onClick={this.handleRestoreOption(restoreDeletion)}
+                                    >
+                                        {this.restoreOptionMessage(deletedItem)}
+                                    </MenuItem>
+                                )}</DeletionRestorer>
+                            </MenuSection>
                         </MenuBarMenu>
                     </div>
                     <Divider className={classNames(styles.divider)} />
@@ -988,7 +1021,7 @@ class MenuBar extends React.Component {
                     <Divider className={classNames(styles.divider)} />
                     <div className={classNames(styles.menuBarItem, styles.programModeGroup)}>
                         <FormattedMessage
-                            defaultMessage="Program Mode"
+                            defaultMessage="Robotics Mode"
                             description="Button to switch to upload mode"
                             id="gui.menu-bar.programMode"
                         />
@@ -1123,6 +1156,7 @@ MenuBar.propTypes = {
     onClickNew: PropTypes.func,
     onGoHome: PropTypes.func,
     onNewBlocksProject: PropTypes.func,
+    onNewRoboticsProject: PropTypes.func,
     onClickRemix: PropTypes.func,
     onClickSave: PropTypes.func,
     onClickSaveAsCopy: PropTypes.func,
@@ -1175,6 +1209,7 @@ MenuBar.propTypes = {
     onSetStageLarge: PropTypes.func.isRequired,
     deviceId: PropTypes.string,
     deviceName: PropTypes.string,
+    deviceLibraryOpen: PropTypes.bool,
     onDeviceIsEmpty: PropTypes.func
 };
 
@@ -1213,7 +1248,8 @@ const mapStateToProps = (state, ownProps) => {
         vm: state.scratchGui.vm,
         peripheralName: state.scratchGui.connectionModal.peripheralName,
         deviceId: state.scratchGui.device.deviceId,
-        deviceName: state.scratchGui.device.deviceName
+        deviceName: state.scratchGui.device.deviceName,
+        deviceLibraryOpen: state.scratchGui.modals.deviceLibrary
     };
 };
 

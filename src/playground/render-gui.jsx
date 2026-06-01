@@ -11,7 +11,7 @@ import MessageBoxType from '../lib/message-box.js';
 import showAppDialog from '../lib/app-dialog-service.js';
 
 const onClickLogo = () => {
-    window.location = 'https://www.openblock.cc/';
+    window.location = 'https://yugminds.com/';
 };
 
 const onClickCheckUpdate = () => {
