@@ -181,6 +181,21 @@
     margin: 5px 0;
 }
 
+/* Brand tagline shown under the rotating loading messages */
+.tagline {
+    margin: 28px 0 0;
+    font-size: 1.05rem;
+    font-weight: 600;
+    line-height: 1.6;
+    letter-spacing: 0.4px;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.tagline-brand {
+    font-weight: 700;
+    color: #FFC02E;
+}
+
 /* Back / timeout area — always rendered so the fade-in transition works */
 .back-area {
     margin-top: 32px;

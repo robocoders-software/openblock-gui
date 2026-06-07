@@ -201,6 +201,12 @@ class LoaderComponent extends React.Component {
                             ))}
                         </div>
                     </div>
+                    <p className={styles.tagline}>
+                        {'Code • Build • Innovate'}
+                        <br />
+                        {'with '}
+                        <span className={styles.taglineBrand}>{'RoboCoders Studio'}</span>
+                    </p>
                     <div className={classNames(styles.backArea, {
                         [styles.backAreaVisible]: this.state.showBack
                     })}>
