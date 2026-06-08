@@ -1031,7 +1031,10 @@ Blocks.defaultOptions = {
     },
     comments: true,
     collapse: false,
-    sounds: false
+    // Enable Blockly UI audio so blocks play the "click" sound when they connect
+    // (and "delete" when removed). The wav files are served from static/blocks-media/
+    // (copied from openblock-blocks/media by webpack).
+    sounds: true
 };
 
 Blocks.defaultProps = {
