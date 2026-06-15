@@ -363,7 +363,7 @@ class MenuBar extends React.Component {
         const idx = await showAppDialog({
             type: 'info',
             title: 'Open Robotics Environment',
-            message: 'Opening Robotics Environment will switch to Program Mode.',
+            message: 'Opening Robotics Environment will switch to Robotics Mode.',
             detail: 'Make sure your device is connected for full functionality.\n' +
                     'Click "Open" to proceed, or "Cancel" to go back.',
             buttons: ['Open', 'Cancel'],
@@ -634,21 +634,21 @@ class MenuBar extends React.Component {
         );
         const checkUpdate = (
             <FormattedMessage
-                defaultMessage="Check update"
+                defaultMessage="Check Update"
                 description="Menu bar item for check update"
                 id="gui.menuBar.checkUpdate"
             />
         );
         const installDriver = (
             <FormattedMessage
-                defaultMessage="Install driver"
+                defaultMessage="Install Driver"
                 description="Menu bar item for install drivers"
                 id="gui.menuBar.installDriver"
             />
         );
         const clearCache = (
             <FormattedMessage
-                defaultMessage="Clear cache and restart"
+                defaultMessage="Clear Cache And Restart"
                 description="Menu bar item for clear cache and restart"
                 id="gui.menuBar.clearCacheAndRestart"
             />

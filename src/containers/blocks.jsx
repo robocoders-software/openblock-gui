@@ -292,6 +292,7 @@ class Blocks extends React.Component {
         this.workspace.dispose();
         clearTimeout(this.toolboxUpdateTimeout);
         clearTimeout(this.getXMLAndUpdateToolboxTimeout);
+        clearTimeout(this._remeasureTimer);
         if (this._renderReadyRaf) {
             cancelAnimationFrame(this._renderReadyRaf);
             this._renderReadyRaf = null;
@@ -721,20 +722,59 @@ class Blocks extends React.Component {
             this.props.updateToolboxState(toolboxXML);
         }
     }
+    /* ── Rebuild & re-measure the flyout so freshly-registered blocks render at correct size ──
+       IMPORTANT: setSelectedCategoryById() only SCROLLS the flyout — it does NOT rebuild it.
+       The flyout is built once (via toolbox.showAll_ → flyout.show()) and, if that happens
+       before the web font loads or before the ML blocks' data-URI SVG icons decode, the block
+       text/widths are measured wrong and render compressed. The only way to fix it is to REBUILD
+       the flyout: toolbox.refreshSelection() → showAll_() re-renders every block. We disable block
+       recycling first so fresh instances are created (recycled blocks keep stale compressed widths),
+       then restore the scroll to the previously-selected category.
+       Triggered after fonts are ready (deterministic — resolves immediately if already loaded) plus
+       a couple of delayed passes for async icon decode. */
+    _remeasureFlyout () {
+        // DEBOUNCED to a SINGLE rebuild. Rebuilding the flyout repeatedly (the watcher polls,
+        // the export flow refreshes, and category clicks all call this) made dynamic-menu
+        // fields (e.g. the class-label dropdown) duplicate their text. Collapse all triggers
+        // into ONE rebuild that runs after fonts are ready + a short settle for icon decode.
+        clearTimeout(this._remeasureTimer);
+        const rebuild = () => {
+            this._remeasureTimer = null;
+            try {
+                const ws = this.workspace;
+                if (!ws || !ws.toolbox_ || typeof ws.toolbox_.refreshSelection !== 'function') return;
+                // Only rebuild when the ML category is the one on screen — avoids needless
+                // full-flyout rebuilds (and their side effects) for unrelated updates.
+                const selId  = (ws.toolbox_.selectedItem_ &&
+                    typeof ws.toolbox_.getSelectedCategoryId === 'function')
+                    ? ws.toolbox_.getSelectedCategoryId() : null;
+                if (selId !== 'teachableMachine') return;
+                const flyout = ws.getFlyout && ws.getFlyout();
+                if (flyout && flyout.setRecyclingEnabled) flyout.setRecyclingEnabled(false);
+                ws.toolbox_.refreshSelection();             // rebuild + re-measure flyout blocks
+                ws.toolbox_.setSelectedCategoryById(selId);  // restore scroll position
+                if (flyout && flyout.setRecyclingEnabled) {
+                    setTimeout(() => { try { flyout.setRecyclingEnabled(true); } catch (_) { /* noop */ } }, 80);
+                }
+            } catch (_) { /* non-fatal */ }
+        };
+        const schedule = () => {
+            clearTimeout(this._remeasureTimer);
+            this._remeasureTimer = setTimeout(rebuild, 250);
+        };
+        // Wait for web fonts (deterministic), then a single settle-delayed rebuild.
+        if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(schedule).catch(schedule);
+        } else {
+            schedule();
+        }
+    }
     handleBlocksInfoUpdate (extensionInfo) {
         this.handleScratchExtensionAdded(extensionInfo);
-        // updateToolbox() re-renders the currently selected category, but if the ML
-        // category isn't selected at that moment the flyout dimensions are computed too
-        // early and blocks appear compressed.  A second deferred setSelectedCategoryById
-        // re-measures after layout is settled, regardless of which category is active.
+        // Freshly-registered extension blocks (ML blocks have async SVG icons + value inputs)
+        // can render compressed if the flyout was built before fonts/icons settled. Rebuild it.
         if (extensionInfo && extensionInfo.id) {
-            const extId = extensionInfo.id;
-            setTimeout(() => {
-                if (this.workspace &&
-                    this.workspace.toolbox_.getSelectedCategoryId() === extId) {
-                    this.workspace.toolbox_.setSelectedCategoryById(extId);
-                }
-            }, 100);
+            this._remeasureFlyout();
         }
     }
     handleCategorySelected (categoryId) {
@@ -747,18 +787,13 @@ class Blocks extends React.Component {
             this.workspace.toolbox_.setSelectedCategoryById(categoryId);
         });
 
-        // Scratch Blocks measures shadow-input block widths before the browser
-        // paints, so reporter blocks with value inputs appear compressed on first
-        // selection.  Re-selecting after two animation frames (post-paint) forces
-        // a correct re-measure without the user noticing.
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                if (this.workspace &&
-                    this.workspace.toolbox_.getSelectedCategoryId() === categoryId) {
-                    this.workspace.toolbox_.setSelectedCategoryById(categoryId);
-                }
-            });
-        });
+        // The Machine Learning category's blocks carry data-URI SVG icons that decode
+        // asynchronously, so the flyout (built on first show) often renders them compressed.
+        // setSelectedCategoryById only SCROLLS — it can't fix this — so REBUILD the flyout
+        // (see _remeasureFlyout) once fonts/icons are ready.
+        if (categoryId === 'teachableMachine') {
+            this._remeasureFlyout();
+        }
     }
     handleDeviceSelected (categoryId) {
         const device = this.props.deviceData.find(ext => ext.deviceId === categoryId);

@@ -63,6 +63,22 @@ const messages = defineMessages({
 // Assume that it doesn't change for a session.
 let isRendererSupported = null;
 
+// True if any target's workspace currently contains teachableMachine (ML) blocks.
+// Used to avoid unloading the ML extension while the project still uses it — which
+// would drop the user's saved ML blocks.
+const projectHasMLBlocks = vm => {
+    try {
+        return vm.runtime.targets.some(t =>
+            t.blocks && t.blocks._blocks &&
+            Object.values(t.blocks._blocks).some(
+                b => b.opcode && b.opcode.indexOf('teachableMachine_') === 0
+            )
+        );
+    } catch (_) {
+        return false;
+    }
+};
+
 const GUIComponent = props => {
     const {
         accountNavOpen,
@@ -296,9 +312,9 @@ const GUIComponent = props => {
                     .catch(e => console.warn('[ML] extension pre-load failed:', e));
             }
         } else if (vm.extensionManager.isExtensionLoaded('teachableMachine') &&
-                   !window.__openblockMLModel) {
-            // No active model — unload regardless of workspace blocks.
-            // Keeping the extension alive with no model makes blocks appear functional but broken.
+                   !window.__openblockMLModel && !projectHasMLBlocks(vm)) {
+            // No active model AND the project has no ML blocks — safe to unload.
+            // (If the project DOES use ML blocks we keep the extension so they stay editable.)
             vm.extensionManager.unloadExtension('teachableMachine');
         }
     }, [mlTabVisible]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -312,7 +328,7 @@ const GUIComponent = props => {
         if (!vm || !vm.extensionManager) return;
         const handler = () => {
             if (!vm.extensionManager.isExtensionLoaded('teachableMachine')) return;
-            if (!window.__openblockMLModel) {
+            if (!window.__openblockMLModel && !projectHasMLBlocks(vm)) {
                 vm.extensionManager.unloadExtension('teachableMachine');
                 return;
             }
@@ -327,6 +343,28 @@ const GUIComponent = props => {
         };
         window.addEventListener('robocoders:ml-back', handler);
         return () => window.removeEventListener('robocoders:ml-back', handler);
+    }, [vm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // "Continue without ML" (after the model was deleted): remove the Machine Learning
+    // category from the toolbox but KEEP the blocks already placed in the workspace.
+    // Unloading the extension drops its toolbox category(ies); the placed blocks keep their
+    // Blockly definitions registered this session, so they stay rendered (not "unknown").
+    useEffect(() => {
+        if (!vm || !vm.extensionManager) return;
+        const handler = () => {
+            try {
+                if (vm.extensionManager.isExtensionLoaded('teachableMachine')) {
+                    vm.extensionManager.unloadExtension('teachableMachine');
+                }
+                // The ML extension also registers the "Images" helper category — drop it too
+                // so no orphan ML category lingers in the toolbox.
+                if (vm.runtime && typeof vm.runtime.removeScratchExtension === 'function') {
+                    vm.runtime.removeScratchExtension('mlImages');
+                }
+            } catch (_) { /* best-effort */ }
+        };
+        window.addEventListener('robocoders:ml-discard-category', handler);
+        return () => window.removeEventListener('robocoders:ml-discard-category', handler);
     }, [vm]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Desktop path: when WrappedGui first mounts after an ML export OR when a .ob file
@@ -457,10 +495,39 @@ const GUIComponent = props => {
                             loadTextProject(meta.id).then(afterLoad).catch(() => {});
                         }
                     }
+                } else if (window.__openblockMLRestoreKeep && window.__openblockMLModel) {
+                    // Crash-backup restore set a valid model reference (type/labels) but this
+                    // project has no .rc/ml-meta to preload from (unsaved project). KEEP the
+                    // restored reference so the correct ML block type shows instead of the
+                    // default image palette. Consume the one-shot flag.
+                    delete window.__openblockMLRestoreKeep;
+                    const m = window.__openblockMLModel;
+                    vm.extensionManager.refreshBlocks().catch(() => {});
+                    // The model files survive a crash on disk — load the classifier so
+                    // predictions work, not just the correct block type.
+                    const t = m.type;
+                    const afterLoad = () => vm.extensionManager.refreshBlocks().catch(() => {});
+                    if (m.trainingStatus === 'ready' && m.projectId) {
+                        if (t === 'images' || t === 'image') {
+                            loadImageProject(m.projectId).then(afterLoad).catch(() => {});
+                        } else if (t === 'sounds') {
+                            loadAudioProject(m.projectId).then(afterLoad).catch(() => {});
+                        } else if (t === 'text') {
+                            loadTextProject(m.projectId).then(afterLoad).catch(() => {});
+                        }
+                    }
                 } else {
-                    // No ML data in this file — unload so blocks turn "unknown" (model missing)
+                    // No ML data bundled in this file. If the project actually USES ML
+                    // blocks, KEEP the extension loaded so those blocks still render and
+                    // stay editable (predictions return defaults until a model is restored
+                    // via ML Studio → "Use in Blocks"). Only unload when the project has no
+                    // ML blocks at all — otherwise unloading drops the user's saved blocks.
                     setActiveModel(null);
-                    vm.extensionManager.unloadExtension('teachableMachine');
+                    if (projectHasMLBlocks(vm)) {
+                        vm.extensionManager.refreshBlocks().catch(() => {});
+                    } else {
+                        vm.extensionManager.unloadExtension('teachableMachine');
+                    }
                 }
             } catch (_) { /* not in Electron */ }
         };

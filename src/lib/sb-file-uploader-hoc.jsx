@@ -108,35 +108,51 @@ const SBFileUploaderHOC = function (WrappedComponent) {
                 }
             }
 
-            /* If the .ob file contains a bundled ML model that has since been deleted,
-               warn the user before opening so they can choose to abort. */
+            /* The blocks .rc only references its ML model by metadata; the model lives on disk.
+               If the referenced model isn't on this device, let the user import it (.rcml),
+               continue without ML, or cancel — PictoBlox-style validation. */
             const filePath = this.fileToUpload && this.fileToUpload.path;
             if (filePath && /\.rc$/i.test(filePath)) {
                 let ipcForCheck = null;
                 try { ipcForCheck = window.require('electron').ipcRenderer; } catch (_) { /* not in Electron */ }
                 if (ipcForCheck) {
                     try {
-                        const mlCheck = await ipcForCheck.invoke('ml-check-ob-model', filePath);
-                        if (mlCheck && mlCheck.mlDeleted) {
+                        let mlCheck = await ipcForCheck.invoke('ml-check-ob-model', filePath);
+                        if (mlCheck && mlCheck.mlMissing) {
                             const name = mlCheck.projectName || 'Unknown';
+                            const type = mlCheck.projectType || 'model';
                             const idx = await showAppDialog({
                                 type: 'warning',
                                 title: 'ML Model Not Found',
-                                message: `The ML model "${name}" used in this project has been deleted.`,
-                                detail: 'You can continue without ML blocks, or cancel and keep the current project.',
-                                buttons: ['Continue without ML blocks', 'Cancel'],
+                                message: `This project uses the ML model "${name}" (${type}), which is not on this device.`,
+                                detail: 'Import the model file (.rcml) to enable its ML blocks, continue without ML ' +
+                                    '(blocks stay but won’t predict), or cancel opening.',
+                                buttons: ['Import Model…', 'Continue without ML', 'Cancel'],
                                 defaultId: 0
                             });
-                            if (idx === 1) {
-                                // User cancelled — abort the file open entirely
+                            if (idx === 2) {
+                                // Cancel — abort the open entirely
                                 this.removeFileObjects();
                                 this.props.closeFileMenu();
                                 return;
                             }
-                            // User chose "Continue without ML blocks" — set flag so onload and
-                            // PROJECT_LOADED handler skip ML restoration for this file open.
-                            window.__openblockMLSkipRestore = true;
-                            try { ipcForCheck.send('ml-set-skip-restore', true); } catch (_) {}
+                            if (idx === 0) {
+                                // Import a .rcml model file, then re-check whether it satisfies this project.
+                                const result = await ipcForCheck.invoke('ml-open-ob-file').catch(() => null);
+                                if (!result || result.canceled || result.error) {
+                                    // Import cancelled/failed — abort so the user can retry deliberately.
+                                    this.removeFileObjects();
+                                    this.props.closeFileMenu();
+                                    return;
+                                }
+                                mlCheck = await ipcForCheck.invoke('ml-check-ob-model', filePath).catch(() => null);
+                            }
+                            // If still missing (chose Continue, or imported a non-matching model),
+                            // skip ML restoration so the project opens without predictions.
+                            if (!mlCheck || mlCheck.mlMissing) {
+                                window.__openblockMLSkipRestore = true;
+                                try { ipcForCheck.send('ml-set-skip-restore', true); } catch (_) {}
+                            }
                         }
                     } catch (_) { /* check failed — proceed normally, ML will load if present */ }
                 }
@@ -243,6 +259,9 @@ const SBFileUploaderHOC = function (WrappedComponent) {
                                 labels: meta.labels || [],
                                 trainingStatus: meta.trained ? 'ready' : 'idle'
                             };
+                            // Arm the model for re-bundling so re-saving this project keeps
+                            // its ML data (main cleared _pendingMLProjectId on file open).
+                            try { _mlIpc.send('ml-set-pending-project', meta.id); } catch (_) {}
                         }
                     } catch (_) { /* preload failed; model will be set by training page on visit */ }
                 }

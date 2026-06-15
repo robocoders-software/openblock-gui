@@ -26,6 +26,17 @@ class SB3Downloader extends React.Component {
         ]);
     }
     downloadProject () {
+        // Desktop: re-arm the active ML model in the main process before the download-based
+        // save (first save / Save As) so the saved .rc embeds its ml-meta.json reference.
+        // window.__openblockMLModel is the renderer's source of truth; main's pending id can
+        // be stale/cleared by intervening events. No-op on web (no Electron). See also
+        // ScratchDesktopGUIHOC._armPendingMLBeforeSave for the direct-save paths.
+        try {
+            const model = window.__openblockMLModel;
+            if (model && model.projectId) {
+                window.require('electron').ipcRenderer.send('ml-set-pending-project', model.projectId);
+            }
+        } catch (_) { /* not in Electron / no active model — ignore */ }
         this.props.saveProjectSb3()
             .then(content => {
                 if (this.props.onSaveFinished) {
